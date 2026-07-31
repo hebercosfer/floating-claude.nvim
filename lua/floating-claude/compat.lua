@@ -206,7 +206,7 @@ function M.check(cmd_string)
     if #problems == 0 then
       return
     end
-    local lines = { "floating-claude.nvim:" }
+    local lines = { "floating-claude.nvim " .. tostring(require("floating-claude.version")) .. ":" }
     for _, p in ipairs(problems) do
       table.insert(lines, "  - " .. p)
     end

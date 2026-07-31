@@ -13,6 +13,9 @@ local config = require("floating-claude.config")
 
 local M = {}
 
+--- This plugin's version: tostring(M.version) or M.version:string() -> "0.1.0".
+M.version = require("floating-claude.version")
+
 -- The claudecode.nvim terminal provider table.
 M.provider = require("floating-claude.provider")
 

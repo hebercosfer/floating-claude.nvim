@@ -13,6 +13,8 @@ local health = vim.health
 function M.check()
   health.start("floating-claude.nvim")
 
+  health.ok("floating-claude.nvim " .. tostring(require("floating-claude.version")))
+
   if vim.fn.has("nvim-0.10") == 1 then
     health.ok("Neovim " .. tostring(vim.version()))
   else

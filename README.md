@@ -172,6 +172,27 @@ automatic minimize/restore is what degrades. To freeze the tested pair instead
 of tracking `main`, pin it in your plugin spec
 (`{ "coder/claudecode.nvim", commit = "2390c6e" }`).
 
+## Versioning
+
+Tagged releases follow [Semver (Semantic Versioning)](https://semver.org/), with
+the history in [CHANGELOG.md](CHANGELOG.md). The current version is readable at
+runtime:
+
+```lua
+tostring(require("floating-claude").version)  --> "0.1.0"
+```
+
+The public surface is `setup()` options, the provider table, the commands and
+the Lua API. The versions in the table above are not part of it: retargeting a
+newer claudecode.nvim or Claude Code UI is a minor bump, because a redrawn TUI
+changes what the auto-minimize does without changing a line of API.
+
+To follow tagged releases instead of `main`:
+
+```lua
+dependencies = { { "hebercosfer/floating-claude.nvim", version = "*" } },
+```
+
 ## Layout
 
 | File                | Role                                                    |
@@ -184,6 +205,7 @@ of tracking `main`, pin it in your plugin spec
 | `state.lua`         | Shared buffer/window handles                            |
 | `config.lua`        | Defaults and `setup()`                                  |
 | `compat.lua`        | Supported claudecode.nvim / Claude Code versions        |
+| `version.lua`       | This plugin's own version                               |
 | `health.lua`        | `:checkhealth floating-claude`                          |
 
 ## License
