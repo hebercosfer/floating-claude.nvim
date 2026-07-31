@@ -1,0 +1,9 @@
+# Every path in this repository is owned by its maintainer, so each pull request
+# requests a review from @hebercosfer -- and the ruleset on main requires that
+# review before a merge.
+#
+# Note that GitHub never requests, or accepts, a review from a pull request's
+# own author. While there is a single owner, this rule only bites for pull
+# requests opened by somebody else.
+
+* @hebercosfer
