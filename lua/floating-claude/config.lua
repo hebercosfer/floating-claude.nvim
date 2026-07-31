@@ -52,6 +52,12 @@ M.defaults = {
     -- Alt (swallowed by some terminals) and Claude's own keys.
     minimize = "<C-x><C-m>",
   },
+
+  -- Warn once per session when the installed claudecode.nvim / Claude Code
+  -- versions are older than the pair this plugin is built against (see
+  -- compat.lua). Nothing is scraped through a stable API, so a mismatch shows
+  -- up as an auto-minimize that quietly stops working. Set to false to silence.
+  version_check = true,
 }
 
 M.options = vim.deepcopy(M.defaults)

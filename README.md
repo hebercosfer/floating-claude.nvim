@@ -27,7 +27,16 @@ Claude has settled and is waiting for you.
 ## Requirements
 
 - Neovim 0.10+
-- [coder/claudecode.nvim](https://github.com/coder/claudecode.nvim)
+- [coder/claudecode.nvim](https://github.com/coder/claudecode.nvim) — `main`,
+  tested at [`2390c6e`](https://github.com/coder/claudecode.nvim/commit/2390c6e45c4789072c293ac69de051d169668b29)
+  (v0.3.0 + 53, 2026-06-25); v0.2.0 is the floor
+- Claude Code CLI 2.1+ — tested at 2.1.220
+
+Both are hard requirements, not suggestions: this plugin implements
+claudecode.nvim's terminal provider interface and reads Claude's state out of
+its rendered TUI, so an older claudecode.nvim (no `terminal.ensure_visible`) or
+an older CLI (a different prompt/status area) leaves the auto-minimize silently
+not working. See [Compatibility](#compatibility).
 
 ## Installation
 
@@ -94,6 +103,9 @@ require("floating-claude").setup({
     -- insert mode. Set to false to skip it.
     minimize = "<C-x><C-m>",
   },
+  -- Warn once per session when claudecode.nvim / Claude Code are older than
+  -- the pair this plugin is built against. Set to false to silence.
+  version_check = true,
 })
 ```
 
@@ -136,6 +148,30 @@ undone by the watcher.
 The same scraping feeds the notification: it tails the status line plus the
 message paragraph above it, refreshing every `refresh_ms`.
 
+## Compatibility
+
+The supported pair is pinned in `compat.lua` and checked the first time Claude
+is spawned; `:checkhealth floating-claude` reports what you actually have.
+
+| Dependency      | Minimum | Tested against                   |
+| --------------- | ------- | -------------------------------- |
+| Neovim          | 0.10    | 0.12                             |
+| claudecode.nvim | 0.2.0   | `main` @ `2390c6e` (v0.3.0 + 53) |
+| Claude Code CLI | 2.1.0   | 2.1.220                          |
+
+From claudecode.nvim we need `terminal.ensure_visible` — what lets a minimized
+Claude *stay* minimized while you resolve a diff — and the `claudecode.diff`
+buffer names `parser.diff_pending()` matches. Its in-source version field lags
+its tags (the v0.3.0 tree still reports `0.2.0`), so the number is treated as a
+floor and the rest is feature-detected. From the CLI we need the rule-framed
+input prompt and the live `✶ … 17s … (esc to interrupt)` line above it; an older
+UI parses as "always idle".
+
+A mismatch is a warning, never a hard failure: the float still works, the
+automatic minimize/restore is what degrades. To freeze the tested pair instead
+of tracking `main`, pin it in your plugin spec
+(`{ "coder/claudecode.nvim", commit = "2390c6e" }`).
+
 ## Layout
 
 | File                | Role                                                    |
@@ -147,6 +183,8 @@ message paragraph above it, refreshing every `refresh_ms`.
 | `parser.lua`        | Scraping Claude's state out of the terminal buffer      |
 | `state.lua`         | Shared buffer/window handles                            |
 | `config.lua`        | Defaults and `setup()`                                  |
+| `compat.lua`        | Supported claudecode.nvim / Claude Code versions        |
+| `health.lua`        | `:checkhealth floating-claude`                          |
 
 ## License
 

@@ -102,6 +102,10 @@ end
 --- Job ------------------------------------------------------------------------
 
 function M.spawn(cmd_string, env_table, effective_config, focus)
+  -- First spawn is the first moment we know which CLI binary claudecode.nvim
+  -- launches, and the last moment before the scraping starts mattering.
+  require("floating-claude.compat").check(cmd_string)
+
   local original_win = vim.api.nvim_get_current_win()
   M.open_window()
 
