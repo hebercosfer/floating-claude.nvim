@@ -27,12 +27,12 @@ jobs:
           - nightly
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       # Pinned rather than tracking plenary's default branch, so a change over
       # there cannot turn this repo's CI red on its own.
       - name: Check out plenary.nvim
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           repository: nvim-lua/plenary.nvim
           ref: master
@@ -52,8 +52,8 @@ jobs:
     name: stylua
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: JohnnyMorganz/stylua-action@v4
+      - uses: actions/checkout@v7
+      - uses: JohnnyMorganz/stylua-action@v5
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: latest
