@@ -1,2 +1,3 @@
 doc/tags
 .luarc.local.json
+.tests/

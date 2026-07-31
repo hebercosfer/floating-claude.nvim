@@ -1,0 +1,42 @@
+local config = require("floating-claude.config")
+
+describe("config", function()
+  after_each(function()
+    config.setup({})
+  end)
+
+  it("starts from the defaults without setup()", function()
+    assert.equals(config.defaults.float.width, config.options.float.width)
+    assert.is_true(config.options.version_check)
+  end)
+
+  it("merges deeply, keeping untouched keys", function()
+    config.setup({ float = { width = 0.5 } })
+    assert.equals(0.5, config.options.float.width)
+    assert.equals(config.defaults.float.height, config.options.float.height)
+    assert.equals(config.defaults.notification.width, config.options.notification.width)
+  end)
+
+  it("tolerates setup() with no arguments", function()
+    config.setup()
+    assert.same(config.defaults, config.options)
+  end)
+
+  it("does not accumulate across calls", function()
+    config.setup({ notification = { width = 20 } })
+    config.setup({ notification = { max_height = 3 } })
+    assert.equals(config.defaults.notification.width, config.options.notification.width)
+    assert.equals(3, config.options.notification.max_height)
+  end)
+
+  it("never mutates the defaults", function()
+    local before = vim.deepcopy(config.defaults)
+    config.setup({ float = { border = "single" }, keymaps = { minimize = false } })
+    assert.same(before, config.defaults)
+  end)
+
+  it("accepts version_check = false", function()
+    config.setup({ version_check = false })
+    assert.is_false(config.options.version_check)
+  end)
+end)

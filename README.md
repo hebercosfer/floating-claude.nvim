@@ -193,6 +193,25 @@ To follow tagged releases instead of `main`:
 dependencies = { { "hebercosfer/floating-claude.nvim", version = "*" } },
 ```
 
+## Tests
+
+Specs run on [plenary.nvim](https://github.com/nvim-lua/plenary.nvim), against a
+runtimepath holding only this plugin and plenary:
+
+```sh
+make test                             # the whole suite
+make test-file FILE=tests/parser_spec.lua
+make lint                             # stylua --check
+```
+
+`make test` finds plenary in your lazy.nvim or `pack/vendor` directory, honours
+`PLENARY_DIR`, and clones it into `.tests/` as a last resort.
+
+claudecode.nvim is deliberately absent from that runtimepath — the specs stub it
+into `package.loaded` instead, so the "not installed" path stays reachable and
+the suite never depends on which version happens to be checked out. Claude Code
+is stubbed the same way, by a shell script that prints a version string.
+
 ## Layout
 
 | File                | Role                                                    |
@@ -206,6 +225,7 @@ dependencies = { { "hebercosfer/floating-claude.nvim", version = "*" } },
 | `config.lua`        | Defaults and `setup()`                                  |
 | `compat.lua`        | Supported claudecode.nvim / Claude Code versions        |
 | `version.lua`       | This plugin's own version                               |
+| `tests/`            | plenary specs and their minimal init                    |
 | `health.lua`        | `:checkhealth floating-claude`                          |
 
 ## License
