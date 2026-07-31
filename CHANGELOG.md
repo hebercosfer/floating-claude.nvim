@@ -16,6 +16,8 @@ new Claude UI can change what the auto-minimize does without changing the API.
 - Test suite on plenary.nvim covering the parser heuristics, the version
   compatibility checks, the provider contract, config merging and the version
   itself: `make test`, `make test-file FILE=…`, `make lint`.
+- GitHub Actions CI running the suite on Neovim 0.10.4, 0.11.7, 0.12.4 and
+  nightly, plus a stylua formatting check.
 
 ## [0.1.0] - 2026-07-31
 

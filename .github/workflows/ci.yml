@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (nvim ${{ matrix.neovim }})
+    runs-on: ubuntu-latest
+    # nightly breaking is Neovim's news, not ours -- report it without failing
+    # the run.
+    continue-on-error: ${{ matrix.neovim == 'nightly' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim:
+          - v0.10.4 # the floor the README promises
+          - v0.11.7
+          - v0.12.4
+          - nightly
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Pinned rather than tracking plenary's default branch, so a change over
+      # there cannot turn this repo's CI red on its own.
+      - name: Check out plenary.nvim
+        uses: actions/checkout@v4
+        with:
+          repository: nvim-lua/plenary.nvim
+          ref: master
+          path: .tests/plenary.nvim
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      - name: Run the suite
+        env:
+          PLENARY_DIR: ${{ github.workspace }}/.tests/plenary.nvim
+        run: make test
+
+  lint:
+    name: stylua
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: JohnnyMorganz/stylua-action@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          version: latest
+          args: --check .
