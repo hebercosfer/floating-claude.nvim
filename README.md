@@ -1,5 +1,7 @@
 # floating-claude.nvim
 
+[![CI](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml)
+
 > **For those who read the code, we salute you!** There is no API for "what is
 > Claude doing right now". This plugin finds out by squinting at a terminal
 > buffer, hunting for a spinning asterisk next to a number followed by the
@@ -211,6 +213,10 @@ claudecode.nvim is deliberately absent from that runtimepath — the specs stub 
 into `package.loaded` instead, so the "not installed" path stays reachable and
 the suite never depends on which version happens to be checked out. Claude Code
 is stubbed the same way, by a shell script that prints a version string.
+
+GitHub Actions runs the same `make test` on Neovim 0.10.4 (the floor above),
+0.11.7, 0.12.4 and nightly, plus `stylua --check`. A nightly failure is reported
+but does not fail the run.
 
 ## Layout
 
