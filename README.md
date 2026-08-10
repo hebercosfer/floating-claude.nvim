@@ -100,6 +100,8 @@ require("floating-claude").setup({
   auto = {
     minimize_on_diff = true,   -- minimize when an edit-approval diff opens
     restore_on_input = true,   -- restore once Claude waits for input
+    minimize_on_leave = true,  -- minimize when focus leaves the float
+    restore_on_enter = true,   -- restore when the notification is entered
     restore_idle_ms = 1200,    -- sustained idle required before restoring
     watch_ms = 300,            -- watcher poll interval
   },
@@ -152,6 +154,16 @@ undone by the watcher.
 
 The same scraping feeds the notification: it tails the status line plus the
 message paragraph above it, refreshing every `refresh_ms`.
+
+Focus moves the float too, which is what makes the mouse work. Leaving the
+float minimizes it (`minimize_on_leave`) and entering the notification restores
+it (`restore_on_enter`) — so clicking away collapses Claude to the corner and
+clicking the corner brings it back. Both react to focus rather than to the
+mouse specifically, so Vim's own window commands do the same thing; the plugin
+disarms them while moving windows itself, which is why launching Claude in the
+background does not immediately minimize it. `restore_on_enter` is also what
+makes the notification focusable: an unfocusable float never receives a click
+at all.
 
 ## Compatibility
 
