@@ -8,6 +8,7 @@
 --   })
 
 local notification = require("floating-claude.notification")
+local parser = require("floating-claude.parser")
 local state = require("floating-claude.state")
 local terminal = require("floating-claude.terminal")
 
@@ -74,16 +75,45 @@ function M.is_available()
   return true
 end
 
--- claudecode.nvim calls this (terminal.ensure_visible) to keep Claude on screen
--- WITHOUT stealing focus -- notably during diff cleanup after an accept/deny.
--- We deliberately do NOT pop the big float here: when minimized we stay
--- minimized, so the float only returns once the watcher decides Claude is
--- waiting for input or done. We just make sure Claude stays represented -- as
--- the corner notification when nothing is currently shown. (Defining this also
--- short-circuits the plugin's fallback, which would otherwise reopen the float
--- via open(focus=false).)
+-- claudecode.nvim calls this (terminal.ensure_visible) whenever it wants Claude
+-- on screen: during diff cleanup after an accept/deny, and after a send such as
+-- :ClaudeCodeSend, which routes here rather than to open() unless
+-- focus_after_send is set.
+--
+-- Those two callers want opposite things from a minimized Claude, and the
+-- interface gives us no way to tell them apart -- so ask the screen instead. A
+-- diff on display is the one reason to stay in the corner; that is what the
+-- notification is for. With no diff pending, the caller asked for Claude and a
+-- corner notification is not what they meant.
+--
+-- The diff-cleanup call is the subtle one, and it is safe for a reason worth
+-- writing down. It arrives from diff.lua right after the diff tab is closed,
+-- which sounds like "no diff pending" -- but the proposed buffer is scratch
+-- with bufhidden="hide", so closing its window only hides it and it stays
+-- loaded. diff_pending() looks at loaded buffers, so it still reports true and
+-- we take the branch above. The post-diff restore therefore remains the
+-- watcher's, gated on restore_idle_ms, which is what stops the float
+-- reappearing during the lull before Claude resumes. If upstream ever wipes
+-- that buffer instead of hiding it, this call starts restoring immediately and
+-- that gating is lost.
+--
+-- Restoring takes focus, which upstream's no-focus intent argues against. The
+-- float is most of the editor: bringing it back over your buffer while the
+-- cursor stayed behind it would hide the very thing you were looking at, and
+-- send your typing somewhere you cannot see. Landing in Claude is the lesser
+-- surprise. Users who want the cursor left alone can keep Claude minimized.
+--
+-- (Defining this also short-circuits the plugin's fallback, which would
+-- otherwise reopen the float via open(focus=false).)
 function M.ensure_visible()
-  if state.win_valid() or state.mini_win_valid() then
+  if state.win_valid() then
+    return true
+  end
+  if state.mini_win_valid() then
+    if parser.diff_pending() then
+      return true
+    end
+    terminal.restore()
     return true
   end
   if state.buf_valid() then

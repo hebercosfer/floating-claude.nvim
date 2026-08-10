@@ -89,5 +89,49 @@ describe("provider", function()
       require("floating-claude.notification").hide()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
+
+    -- :ClaudeCodeSend routes here rather than to open() unless focus_after_send
+    -- is set, so a minimized Claude has to come back or the keymap looks dead.
+    describe("with Claude minimized", function()
+      local buf, diff_buf
+
+      before_each(function()
+        buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Done." })
+        state.buf = buf
+        require("floating-claude.notification").show()
+        assert.is_true(state.mini_win_valid(), "precondition: Claude is minimized")
+      end)
+
+      after_each(function()
+        require("floating-claude.notification").hide()
+        if state.win_valid() then
+          vim.api.nvim_win_close(state.win, true)
+        end
+        if diff_buf and vim.api.nvim_buf_is_valid(diff_buf) then
+          vim.api.nvim_buf_delete(diff_buf, { force = true })
+        end
+        diff_buf = nil
+        if vim.api.nvim_buf_is_valid(buf) then
+          vim.api.nvim_buf_delete(buf, { force = true })
+        end
+      end)
+
+      it("restores the float when no diff is on screen", function()
+        assert.is_true(provider.ensure_visible())
+        assert.is_true(state.win_valid(), "the float should be back")
+        assert.is_false(state.mini_win_valid(), "the notification should be gone")
+      end)
+
+      -- The one reason to stay in the corner: popping the float back over a
+      -- diff hides the thing the notification exists to let you read.
+      it("stays minimized while a diff is pending", function()
+        diff_buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_name(diff_buf, "✻ [Claude Code] init.lua (a1b2c3) ⧉ (proposed)")
+        assert.is_true(provider.ensure_visible())
+        assert.is_true(state.mini_win_valid(), "should still be minimized")
+        assert.is_false(state.win_valid(), "the float should not have reopened")
+      end)
+    end)
   end)
 end)
