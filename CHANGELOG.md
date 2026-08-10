@@ -11,6 +11,14 @@ new Claude UI can change what the auto-minimize does without changing the API.
 
 ## [Unreleased]
 
+### Fixed
+
+- Sending to Claude while it is minimized (`:ClaudeCodeSend`, and anything else
+  routed through `ensure_visible`) now brings the float back instead of leaving
+  you with the corner notification. Staying minimized is still what happens
+  while an edit-approval diff is on screen, which is the one case it was meant
+  for.
+
 ## [0.2.0] - 2026-08-10
 
 ### Changed
