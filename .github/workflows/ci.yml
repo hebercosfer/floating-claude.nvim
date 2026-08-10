@@ -57,3 +57,22 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           version: latest
           args: --check .
+
+  # One check whose name does not move when the matrix does. Every "test (nvim
+  # X)" context carries a version, so a branch ruleset naming one would wedge
+  # any line that does not test exactly that version -- and each maintenance
+  # line tests a different floor. This is the context a ruleset can require.
+  tests:
+    name: tests
+    needs: test
+    # always(), or a failing matrix skips this job -- and a skipped required
+    # check blocks a pull request forever instead of failing it.
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail unless the whole matrix passed
+        # 'success' only when every leg passed. nightly is continue-on-error,
+        # so its breakage never reaches here -- the call ci.yml already makes.
+        run: |
+          echo "matrix result: ${{ needs.test.result }}"
+          [ "${{ needs.test.result }}" = "success" ]
