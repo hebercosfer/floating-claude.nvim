@@ -18,6 +18,12 @@ local M = {
   -- auto-restore so the brief lull after a diff is resolved doesn't pop the
   -- float before Claude has resumed.
   idle_since = nil,
+  -- Set while the plugin is moving windows itself. The focus autocmds cannot
+  -- tell our own juggling from the user stepping away -- spawn() enters the
+  -- float and then hands focus back, which would otherwise minimize Claude the
+  -- instant it launches, and minimize() leaving the float would re-enter its
+  -- own handler.
+  suppress_auto = false,
 }
 
 function M.buf_valid()

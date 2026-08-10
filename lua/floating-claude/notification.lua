@@ -20,6 +20,32 @@ local function stop_timer()
   end
 end
 
+local group = vim.api.nvim_create_augroup("FloatingClaudeFocus", { clear = false })
+
+-- Entering the notification is a request for Claude, however you got there: a
+-- click, or a window command. An unfocusable window cannot be clicked at all,
+-- so restore_on_enter is what makes it focusable in the first place -- see the
+-- window config below.
+local function attach_enter(buf)
+  vim.api.nvim_clear_autocmds({ group = group, buffer = buf })
+  if not config.options.auto.restore_on_enter then
+    return
+  end
+  vim.api.nvim_create_autocmd("WinEnter", {
+    group = group,
+    buffer = buf,
+    desc = "Restore the Claude float when its notification is entered",
+    callback = function()
+      if state.suppress_auto then
+        return
+      end
+      -- Required lazily: terminal.lua requires this module, so taking it at the
+      -- top would close the loop.
+      require("floating-claude.terminal").restore()
+    end,
+  })
+end
+
 function M.hide()
   stop_timer()
   if state.mini_win_valid() then
@@ -35,6 +61,7 @@ local function render()
 
   if not state.mini_buf_valid() then
     state.mini_buf = vim.api.nvim_create_buf(false, true)
+    attach_enter(state.mini_buf)
   end
   vim.bo[state.mini_buf].modifiable = true
   vim.api.nvim_buf_set_lines(state.mini_buf, 0, -1, false, content)
@@ -62,7 +89,10 @@ local function render()
     border = opts.border,
     title = opts.title,
     title_pos = opts.title_pos,
-    focusable = false,
+    -- Focusable only when entering it is meant to do something. Neovim routes
+    -- mouse clicks to focusable windows only, so this is the difference
+    -- between a click landing here and passing straight through.
+    focusable = config.options.auto.restore_on_enter,
     zindex = opts.zindex,
   }
 
