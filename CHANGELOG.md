@@ -20,6 +20,10 @@ new Claude UI can change what the auto-minimize does without changing the API.
 - The terminal spawns with `jobstart({ term = true })` instead of `termopen()`,
   which Neovim deprecated in 0.11. Raising the floor is what lets this happen
   without a version guard, and it is the reason the floor moved.
+- The timers take `vim.uv` directly rather than falling back to `vim.loop`,
+  deprecated since 0.10. The fallback was unreachable, and it widened the
+  expression to an unknown type, which silenced field checking on every timer
+  handle reached through it.
 
 ### Added
 
