@@ -2,7 +2,9 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    # The 0.1.x maintenance line. A push to main runs main's own copy of this
+    # file, so only this branch belongs here.
+    branches: [support/nvim-0.10]
   pull_request:
   workflow_dispatch:
 

@@ -1,6 +1,16 @@
 # floating-claude.nvim
 
-[![CI](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml)
+[![CI](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml/badge.svg?branch=support%2Fnvim-0.10)](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml?query=branch%3Asupport%2Fnvim-0.10)
+
+> [!NOTE]
+> **This is the Neovim 0.10 maintenance line (0.1.x).** Active development
+> continues on [`main`](https://github.com/hebercosfer/floating-claude.nvim),
+> which requires Neovim 0.11+. This branch keeps taking fixes, and features too
+> where they work without a newer Neovim; only what genuinely needs the higher
+> floor is `main`-only.
+>
+> Pin to this line with `version = "~0.1.0"`. On Neovim 0.11 or later, use
+> `main` instead.
 
 > **For those who read the code, we salute you!** There is no API for "what is
 > Claude doing right now". This plugin finds out by squinting at a terminal
