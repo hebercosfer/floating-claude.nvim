@@ -28,7 +28,7 @@ Claude has settled and is waiting for you.
 
 ## Requirements
 
-- Neovim 0.10+
+- Neovim 0.11+
 - [coder/claudecode.nvim](https://github.com/coder/claudecode.nvim) — `main`,
   tested at [`2390c6e`](https://github.com/coder/claudecode.nvim/commit/2390c6e45c4789072c293ac69de051d169668b29)
   (v0.3.0 + 53, 2026-06-25); v0.2.0 is the floor
@@ -39,6 +39,9 @@ claudecode.nvim's terminal provider interface and reads Claude's state out of
 its rendered TUI, so an older claudecode.nvim (no `terminal.ensure_visible`) or
 an older CLI (a different prompt/status area) leaves the auto-minimize silently
 not working. See [Compatibility](#compatibility).
+
+On an older Neovim? Previous floors keep their own maintained lines — see
+[Older Neovim](#older-neovim).
 
 ## Installation
 
@@ -157,7 +160,7 @@ is spawned; `:checkhealth floating-claude` reports what you actually have.
 
 | Dependency      | Minimum | Tested against                   |
 | --------------- | ------- | -------------------------------- |
-| Neovim          | 0.10    | 0.12                             |
+| Neovim          | 0.11    | 0.12                             |
 | claudecode.nvim | 0.2.0   | `main` @ `2390c6e` (v0.3.0 + 53) |
 | Claude Code CLI | 2.1.0   | 2.1.220                          |
 
@@ -181,7 +184,7 @@ the history in [CHANGELOG.md](CHANGELOG.md). The current version is readable at
 runtime:
 
 ```lua
-tostring(require("floating-claude").version)  --> "0.1.0"
+tostring(require("floating-claude").version)  --> "major.minor.patch"
 ```
 
 The public surface is `setup()` options, the provider table, the commands and
@@ -194,6 +197,25 @@ To follow tagged releases instead of `main`:
 ```lua
 dependencies = { { "hebercosfer/floating-claude.nvim", version = "*" } },
 ```
+
+### Older Neovim
+
+Raising the minimum Neovim is a breaking change, so it takes a minor bump and
+the outgoing line keeps going on its own branch, named `support/nvim-<floor>`.
+Those branches take fixes, and features too where they work without the newer
+Neovim; only what genuinely needs the higher floor is `main`-only.
+
+| Neovim | Plugin line | Branch              | Pin with             |
+| ------ | ----------- | ------------------- | -------------------- |
+| 0.11+  | 0.2.x       | `main`              | `version = "~0.2.0"` |
+| 0.10   | 0.1.x       | `support/nvim-0.10` | `version = "~0.1.0"` |
+
+```lua
+dependencies = { { "hebercosfer/floating-claude.nvim", version = "~0.1.0" } },
+```
+
+`~0.1.0` accepts 0.1.1 and 0.1.2 but never 0.2.0, so a floor you cannot run
+never arrives as an update.
 
 ## Tests
 
@@ -233,9 +255,9 @@ into `package.loaded` instead, so the "not installed" path stays reachable and
 the suite never depends on which version happens to be checked out. Claude Code
 is stubbed the same way, by a shell script that prints a version string.
 
-GitHub Actions runs the same `make test` on Neovim 0.10.4 (the floor above),
-0.11.7, 0.12.4 and nightly, plus `stylua --check`. A nightly failure is reported
-but does not fail the run.
+GitHub Actions runs the same `make test` on Neovim 0.11.7 (the floor above),
+0.12.4 and nightly, plus `stylua --check`. A nightly failure is reported but
+does not fail the run.
 
 ## Layout
 

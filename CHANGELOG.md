@@ -11,13 +11,23 @@ new Claude UI can change what the auto-minimize does without changing the API.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-08-10
+
+### Changed
+
+- **Neovim 0.11 is now the floor.** 0.10 is no longer tested or supported. The
+  0.1.x line lives on in the `support/nvim-0.10` branch for anyone still there.
+- The terminal spawns with `jobstart({ term = true })` instead of `termopen()`,
+  which Neovim deprecated in 0.11. Raising the floor is what lets this happen
+  without a version guard, and it is the reason the floor moved.
+
 ### Added
 
 - Test suite on plenary.nvim covering the parser heuristics, the version
   compatibility checks, the provider contract, config merging and the version
   itself: `make test`, `make test-file FILE=…`, `make lint`.
-- GitHub Actions CI running the suite on Neovim 0.10.4, 0.11.7, 0.12.4 and
-  nightly, plus a stylua formatting check.
+- GitHub Actions CI running the suite on Neovim 0.11.7, 0.12.4 and nightly,
+  plus a stylua formatting check.
 - Compatibility specs that load a real claudecode.nvim instead of stubbing it,
   asserting the things this plugin leans on beyond the documented contract:
   `terminal.ensure_visible` and `claudecode.diff` still exist, upstream's
@@ -28,6 +38,12 @@ new Claude UI can change what the auto-minimize does without changing the API.
   claudecode.nvim and the latest Claude Code CLI rather than the pair
   `compat.lua` pins, reporting version drift and opening an issue when the
   contract no longer holds.
+
+### Compatibility
+
+- Neovim 0.11+
+- claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
+- Claude Code CLI 2.1.220; minimum 2.1.0
 
 ## [0.1.0] - 2026-07-31
 
@@ -56,5 +72,6 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hebercosfer/floating-claude.nvim/releases/tag/v0.1.0

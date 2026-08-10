@@ -116,7 +116,11 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
     cmd_arg = { cmd_string }
   end
 
-  state.jobid = vim.fn.termopen(cmd_arg, {
+  -- jobstart({ term = true }) rather than termopen(): the latter is deprecated
+  -- as of Neovim 0.11, which is this release's floor. Both attach the terminal
+  -- to the current buffer, which open_window() has just entered.
+  state.jobid = vim.fn.jobstart(cmd_arg, {
+    term = true,
     env = env_table,
     cwd = effective_config and effective_config.cwd or nil,
     on_exit = function(job_id)

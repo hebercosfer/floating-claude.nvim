@@ -19,12 +19,13 @@ end
 
 local M = {
   major = 0,
-  minor = 1,
+  minor = 2,
   patch = 0,
   prerelease = nil,
 }
 
---- "0.1.0". Also available as tostring(require("floating-claude").version).
+--- The version as "major.minor.patch". Also available as
+--- tostring(require("floating-claude").version).
 ---@return string
 function M:string()
   return to_string(self)

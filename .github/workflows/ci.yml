@@ -21,8 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         neovim:
-          - v0.10.4 # the floor the README promises
-          - v0.11.7
+          - v0.11.7 # the floor the README promises
           - v0.12.4
           - nightly
 
