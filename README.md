@@ -207,7 +207,26 @@ make lint                             # stylua --check
 ```
 
 `make test` finds plenary in your lazy.nvim or `pack/vendor` directory, honours
-`PLENARY_DIR`, and clones it into `.tests/` as a last resort.
+`PLENARY_DIR`, and clones it into `.tests/` as a last resort. plenary is only
+ever a test dependency — nothing under `lua/` requires it, so it does not belong
+in your plugin spec.
+
+claudecode.nvim is deliberately absent from that runtimepath: the specs stub it
+into `package.loaded`, which keeps the "not installed" path reachable and stops
+the suite depending on which version happens to be checked out. The cost is that
+nothing in `make test` can notice upstream moving, so the contract is checked
+separately, against a real one:
+
+```sh
+make test-compat                      # needs a claude on PATH
+```
+
+That clones claudecode.nvim into `.tests/` unless `CLAUDECODE_DIR` already points
+at a checkout, and asserts what this plugin leans on beyond the documented
+provider interface: `terminal.ensure_visible` and `claudecode.diff` still exist,
+and upstream's `required_functions` is still satisfied by the provider. The
+`Compat` workflow runs it weekly against the tip of claudecode.nvim and the
+latest CLI, so drift surfaces there instead of in your editor.
 
 claudecode.nvim is deliberately absent from that runtimepath — the specs stub it
 into `package.loaded` instead, so the "not installed" path stays reachable and

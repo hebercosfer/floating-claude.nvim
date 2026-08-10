@@ -18,6 +18,16 @@ new Claude UI can change what the auto-minimize does without changing the API.
   itself: `make test`, `make test-file FILE=…`, `make lint`.
 - GitHub Actions CI running the suite on Neovim 0.10.4, 0.11.7, 0.12.4 and
   nightly, plus a stylua formatting check.
+- Compatibility specs that load a real claudecode.nvim instead of stubbing it,
+  asserting the things this plugin leans on beyond the documented contract:
+  `terminal.ensure_visible` and `claudecode.diff` still exist, upstream's
+  `required_functions` is still satisfied by the provider, and the copy of that
+  list `provider_spec.lua` keeps by hand still matches. `make test-compat`;
+  skipped by `make test`, which has no claudecode.nvim on the runtimepath.
+- A weekly `Compat` workflow running those specs against the tip of
+  claudecode.nvim and the latest Claude Code CLI rather than the pair
+  `compat.lua` pins, reporting version drift and opening an issue when the
+  contract no longer holds.
 
 ## [0.1.0] - 2026-07-31
 

@@ -1,0 +1,203 @@
+name: Compat
+
+# ci.yml pins the world so a change upstream cannot turn this repo red on its
+# own. This workflow does the opposite on purpose: it runs against whatever
+# claudecode.nvim and the Claude Code CLI are shipping right now, so drift
+# surfaces here on a schedule instead of in somebody's editor.
+#
+# The unit suite structurally cannot do this job. tests/minimal_init.lua keeps
+# claudecode.nvim off the runtimepath and every spec stubs it into
+# package.loaded, which is what keeps the "not installed" path reachable -- and
+# also what makes `make test` blind to an upstream rename. The real contract
+# check lives in tests/integration/ and only runs from here.
+
+on:
+  schedule:
+    # Mondays, 04:17 UTC. Off the hour deliberately: GitHub queues scheduled
+    # runs and the top of the hour is the most contended slot.
+    - cron: "17 4 * * 1"
+  workflow_dispatch:
+  # Changes to the machinery should prove themselves on the PR rather than a
+  # week later, when the reason is out of your head.
+  pull_request:
+    paths:
+      - ".github/workflows/compat.yml"
+      - "tests/integration/**"
+      - "tests/integration_init.lua"
+      - "lua/floating-claude/compat.lua"
+      - "Makefile"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: compat
+  cancel-in-progress: false
+
+jobs:
+  drift:
+    name: pins vs latest
+    runs-on: ubuntu-latest
+    outputs:
+      report: ${{ steps.compare.outputs.report }}
+      drifted: ${{ steps.compare.outputs.drifted }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: stable
+
+      - name: Compare compat.lua against what is actually shipping
+        id: compare
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # dofile rather than grep: compat.lua is plain Lua tables at the top
+          # level, so this reads the real values and a reformatting cannot
+          # quietly parse as "no drift".
+          cat > /tmp/pins.lua <<'LUA'
+          local compat = dofile("lua/floating-claude/compat.lua")
+          local out = assert(io.open("/tmp/pins.txt", "w"))
+          out:write(compat.tested.claude_code, "\n", compat.tested.claudecode.commit, "\n")
+          out:close()
+          LUA
+          nvim --headless --noplugin -u NONE -c "luafile /tmp/pins.lua" -c q
+
+          PINNED_CLI=$(sed -n 1p /tmp/pins.txt)
+          PINNED_CC=$(sed -n 2p /tmp/pins.txt)
+          LATEST_CLI=$(npm view @anthropic-ai/claude-code version)
+          LATEST_CC=$(gh api repos/coder/claudecode.nvim/commits/main --jq '.sha[0:7]')
+
+          drifted=false
+          cli_state="up to date"
+          cc_state="up to date"
+          [ "$PINNED_CLI" = "$LATEST_CLI" ] || { drifted=true; cli_state="**drifted**"; }
+          [ "$PINNED_CC" = "$LATEST_CC" ] || { drifted=true; cc_state="**drifted**"; }
+
+          {
+            echo "| dependency | compat.lua pins | latest | |"
+            echo "| --- | --- | --- | --- |"
+            echo "| Claude Code CLI | \`$PINNED_CLI\` | \`$LATEST_CLI\` | $cli_state |"
+            echo "| claudecode.nvim | \`$PINNED_CC\` | \`$LATEST_CC\` | $cc_state |"
+          } > /tmp/report.md
+
+          cat /tmp/report.md >> "$GITHUB_STEP_SUMMARY"
+
+          # Drift on its own is not a failure -- upstream ships patches all the
+          # time and crying wolf weekly is how an alert gets ignored. It is
+          # context for the integration job, which is what actually goes red.
+          echo "drifted=$drifted" >> "$GITHUB_OUTPUT"
+          {
+            echo "report<<REPORT_EOF"
+            cat /tmp/report.md
+            echo "REPORT_EOF"
+          } >> "$GITHUB_OUTPUT"
+
+  integration:
+    name: contract (nvim ${{ matrix.neovim }})
+    runs-on: ubuntu-latest
+    # A nightly Neovim break is Neovim's news, not ours -- same call ci.yml makes.
+    continue-on-error: ${{ matrix.neovim == 'nightly' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        neovim:
+          - stable
+          - nightly
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check out plenary.nvim
+        uses: actions/checkout@v7
+        with:
+          repository: nvim-lua/plenary.nvim
+          ref: master
+          path: .tests/plenary.nvim
+
+      # main, not a pin. Finding out what the tip does to us is the entire point.
+      - name: Check out claudecode.nvim
+        uses: actions/checkout@v7
+        with:
+          repository: coder/claudecode.nvim
+          ref: main
+          path: .tests/claudecode.nvim
+
+      - uses: rhysd/action-setup-vim@v1
+        with:
+          neovim: true
+          version: ${{ matrix.neovim }}
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: lts/*
+
+      - name: Install the latest Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+
+      - name: Record what we are testing against
+        run: |
+          {
+            echo "- Neovim: \`$(nvim --version | head -1)\`"
+            echo "- Claude Code: \`$(claude --version)\`"
+            echo "- claudecode.nvim: \`$(git -C .tests/claudecode.nvim rev-parse --short HEAD)\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Run the compatibility suite
+        env:
+          PLENARY_DIR: ${{ github.workspace }}/.tests/plenary.nvim
+          CLAUDECODE_DIR: ${{ github.workspace }}/.tests/claudecode.nvim
+        run: make test-compat
+
+  notify:
+    name: file the report
+    needs: [drift, integration]
+    # failure() covers the integration job going red. Not on pull_request: you
+    # are already looking at the red X there, and an issue per push is noise.
+    if: failure() && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Open or update the compatibility issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          REPORT: ${{ needs.drift.outputs.report }}
+        run: |
+          set -euo pipefail
+
+          BODY=$(cat <<EOF
+          The scheduled compatibility run failed: floating-claude.nvim no longer
+          holds up against the current claudecode.nvim and/or Claude Code CLI.
+
+          $REPORT
+
+          [Full run and failing assertions]($RUN_URL)
+
+          The failing assertions name what moved. Once you have adjusted the
+          plugin, refresh \`M.tested\` in \`lua/floating-claude/compat.lua\` to the
+          pair above and note it under \`### Compatibility\` in \`CHANGELOG.md\`.
+          EOF
+          )
+
+          # Reuse one open issue instead of filing a fresh one every week: an
+          # alert that arrives as a duplicate pile gets muted.
+          EXISTING=$(gh issue list --repo "$REPO" --label compat --state open \
+            --limit 1 --json number --jq '.[0].number // empty')
+
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --repo "$REPO" --body "$BODY"
+            echo "commented on #$EXISTING" >> "$GITHUB_STEP_SUMMARY"
+          else
+            gh label create compat --repo "$REPO" --color D93F0B \
+              --description "Upstream compatibility drift" 2>/dev/null || true
+            gh issue create --repo "$REPO" --label compat \
+              --title "Compat: upstream no longer matches what this plugin expects" \
+              --body "$BODY"
+          fi
