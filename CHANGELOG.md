@@ -29,6 +29,14 @@ new Claude UI can change what the auto-minimize does without changing the API.
   `compat.lua` pins, reporting version drift and opening an issue when the
   contract no longer holds.
 
+### Fixed
+
+- Sending to Claude while it is minimized (`:ClaudeCodeSend`, and anything else
+  routed through `ensure_visible`) now brings the float back instead of leaving
+  you with the corner notification. Staying minimized is still what happens
+  while an edit-approval diff is on screen, which is the one case it was meant
+  for.
+
 ## [0.1.0] - 2026-07-31
 
 First release.
