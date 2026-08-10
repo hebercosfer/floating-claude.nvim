@@ -38,6 +38,15 @@ M.defaults = {
     -- Restore the float once Claude finishes and waits for input (but not while
     -- a diff is up -- you are reviewing that).
     restore_on_input = true,
+    -- Minimize when focus leaves the float, so stepping away to your code
+    -- collapses Claude to the corner instead of leaving it over your work.
+    -- Any focus change counts: clicking another window, or moving there with
+    -- Vim's own window commands (<C-w>h and friends).
+    minimize_on_leave = true,
+    -- Restore when the corner notification is entered, so clicking it brings
+    -- the float back. This also makes the notification focusable, which is
+    -- what lets a click reach it at all.
+    restore_on_enter = true,
     -- Sustained idle required before auto-restoring. This debounce is what
     -- keeps the brief lull between a diff being resolved and Claude resuming
     -- from popping the float back over your work.

@@ -28,6 +28,13 @@ new Claude UI can change what the auto-minimize does without changing the API.
   claudecode.nvim and the latest Claude Code CLI rather than the pair
   `compat.lua` pins, reporting version drift and opening an issue when the
   contract no longer holds.
+- Mouse-friendly focus handling. Leaving the float minimizes it
+  (`auto.minimize_on_leave`) and entering the corner notification restores it
+  (`auto.restore_on_enter`), so clicking away collapses Claude and clicking the
+  corner brings it back. Both key off focus rather than the mouse specifically,
+  so Vim's window commands behave the same way, and both are off with one
+  option each. `restore_on_enter` also makes the notification focusable, which
+  is what lets a click reach it.
 
 ### Fixed
 

@@ -8,6 +8,47 @@ local watcher = require("floating-claude.watcher")
 
 local M = {}
 
+local group = vim.api.nvim_create_augroup("FloatingClaudeFocusFloat", { clear = false })
+
+--- Run `fn` with the focus autocmds disarmed.
+---
+--- Every window move the plugin makes itself looks exactly like the user
+--- stepping away, and two of them would misfire badly: spawn() enters the float
+--- and hands focus straight back when focus=false, which would minimize Claude
+--- the instant it launched, and minimize() leaves the float on its way out,
+--- which would re-enter its own handler.
+---@param fn fun()
+local function quietly(fn)
+  local was = state.suppress_auto
+  state.suppress_auto = true
+  local ok, err = pcall(fn)
+  state.suppress_auto = was
+  if not ok then
+    error(err, 0)
+  end
+end
+
+-- Leaving the float means you are looking at something else, so get out of the
+-- way. Any focus change counts -- a click elsewhere and a window command are
+-- the same intent expressed two ways.
+local function attach_leave(buf)
+  vim.api.nvim_clear_autocmds({ group = group, buffer = buf })
+  if not config.options.auto.minimize_on_leave then
+    return
+  end
+  vim.api.nvim_create_autocmd("WinLeave", {
+    group = group,
+    buffer = buf,
+    desc = "Minimize the Claude float when focus leaves it",
+    callback = function()
+      if state.suppress_auto or not state.win_valid() then
+        return
+      end
+      M.minimize()
+    end,
+  })
+end
+
 -- Float dimensions are fractions of the editor when <= 1, absolute cells above.
 local function resolve(value, total)
   if value <= 1 then
@@ -32,6 +73,9 @@ function M.open_window()
   else
     buf = vim.api.nvim_create_buf(false, true)
   end
+  -- Here rather than in spawn(): every route to a visible float comes through
+  -- this function, and re-attaching is idempotent.
+  attach_leave(buf)
 
   local win = vim.api.nvim_open_win(buf, true, {
     relative = "editor",
@@ -72,18 +116,22 @@ function M.minimize()
     vim.notify("Claude Code is not running.", vim.log.levels.WARN)
     return
   end
-  M.hide_window()
-  notification.show()
+  quietly(function()
+    M.hide_window()
+    notification.show()
+  end)
 end
 
 -- Bring the full float back (also dismisses the notification).
 function M.restore()
-  if state.buf_valid() then
-    M.open_window()
-    M.focus_window()
-  else
-    notification.hide()
-  end
+  quietly(function()
+    if state.buf_valid() then
+      M.open_window()
+      M.focus_window()
+    else
+      notification.hide()
+    end
+  end)
 end
 
 -- Flip between the float and the corner notification.
@@ -160,11 +208,15 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
 
   watcher.start({ minimize = M.minimize, restore = M.restore })
 
-  if focus ~= false then
-    M.focus_window()
-  elseif vim.api.nvim_win_is_valid(original_win) then
-    vim.api.nvim_set_current_win(original_win)
-  end
+  -- Handing focus back is our own move, not the user turning away: without the
+  -- guard, launching with focus=false would minimize Claude on the spot.
+  quietly(function()
+    if focus ~= false then
+      M.focus_window()
+    elseif vim.api.nvim_win_is_valid(original_win) then
+      vim.api.nvim_set_current_win(original_win)
+    end
+  end)
   return true
 end
 
