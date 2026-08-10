@@ -4,7 +4,8 @@ local config = require("floating-claude.config")
 local parser = require("floating-claude.parser")
 local state = require("floating-claude.state")
 
-local uv = vim.uv or vim.loop
+---@type uv
+local uv = vim.uv
 
 local M = {}
 
