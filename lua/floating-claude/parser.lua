@@ -42,9 +42,18 @@ local function is_rule(line)
 end
 
 -- Claude's live status/spinner line sits directly above the input box while a
--- task runs, e.g. "✶ Baked for 17s … (esc to interrupt)". When it is the line
--- we anchor on, we also pull in the message paragraph above it; when Claude is
--- idle there is no such line, so we show only the last message paragraph.
+-- task runs. When it is the line we anchor on, we also pull in the message
+-- paragraph above it; when Claude is idle there is no such line, so we show
+-- only the last message paragraph.
+--
+-- Two shapes have been observed:
+--
+--   ✽ Infusing… (8m 24s · ↓ 24.8k tokens)     -- what the tested CLI renders
+--   ✶ Baked for 17s … (esc to interrupt)      -- the older wording
+--
+-- The glyph itself cycles and is not reliably enumerable, so it only ever says
+-- "this line might be the spinner"; what makes the line *live* is the detail
+-- group after the verb.
 local SPINNER_GLYPHS = {
   "·",
   "✢",
@@ -66,28 +75,36 @@ local SPINNER_GLYPHS = {
   "◓",
 }
 
-local function is_status_line(line)
-  if line == nil then
-    return false
-  end
-  local s = line:gsub("^%s+", "")
-  if s:find("esc to interrupt", 1, true) then
-    return true
-  end
-  -- Otherwise a live status line pairs a running timer ("17s", "2m 7s") with a
-  -- spinner glyph, or the characteristic ellipsis / mid-dot / token counter --
-  -- the spinner glyph itself cycles and is not reliably enumerable.
-  if not s:find("%f[%d]%d+s%f[%W]") then
-    return false
-  end
+local function leads_with_spinner(s)
   for _, g in ipairs(SPINNER_GLYPHS) do
     if s:sub(1, #g) == g then
       return true
     end
   end
-  return s:find("…", 1, true) ~= nil
-    or s:find("·", 1, true) ~= nil
-    or s:lower():find("tokens", 1, true) ~= nil
+  return false
+end
+
+-- A duration on its own says nothing: when the turn ends, the spinner line
+-- freezes into a marker and a summary lands under it, and both carry one.
+--
+--   ✻ Cooked for 1m 40s
+--   ● Ran the suite; two specs still red · 44s
+--
+-- Those are how a turn FINISHES, so reading either as "working" pins the float
+-- in the corner forever -- `busy` never goes false, the idle clock never
+-- starts, and the float never comes back after a diff. What separates them from
+-- the live line is where the timer sits: running, it is inside the detail group
+-- that trails the verb ("(8m 24s ·", "(3s)"); finished, it is bare.
+local function is_status_line(line)
+  if line == nil then
+    return false
+  end
+  local s = line:gsub("^%s+", "")
+  -- The interrupt hint is unambiguous wherever it appears on the line.
+  if s:find("esc to interrupt", 1, true) then
+    return true
+  end
+  return leads_with_spinner(s) and s:find("%(%s*%d+[hms]") ~= nil
 end
 
 -- claudecode.nvim shows an edit approval as a native diff (not a terminal
