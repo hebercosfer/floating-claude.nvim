@@ -16,6 +16,26 @@ local RULE = string.rep("─", 40)
 -- status line between them.
 local IDLE = { "Done. Anything else?", "", RULE, "> ", RULE }
 
+-- Claude at rest as the CLI really leaves the screen: the spinner line freezes
+-- into a marker and a summary lands under it, both carrying a duration.
+local FINISHED = {
+  "● Rewrote the parser predicate · 44s",
+  "✻ Cooked for 1m 40s",
+  RULE,
+  "❯ ",
+  RULE,
+}
+
+-- ...and mid-turn, which is the same shape plus the trailing detail group.
+local WORKING = {
+  "● Rewrote the parser predicate · 44s",
+  "",
+  "✽ Infusing… (8m 24s · ↓ 24.8k tokens)",
+  RULE,
+  "❯ ",
+  RULE,
+}
+
 describe("watcher", function()
   local restored, minimized, handlers, buffers
 
@@ -117,6 +137,36 @@ describe("watcher", function()
         end, 20),
         "a hidden leftover proposed buffer is still being counted as a live diff"
       )
+    end)
+
+    -- The one the user kept hitting after the two fixes above. Nothing here is
+    -- about diffs: the turn that produced the diff ends, and what it leaves on
+    -- screen reads as a running spinner, so `busy` never falls and the idle
+    -- clock never starts. The float stays in the corner indefinitely.
+    it("restores once the turn ends, summary line and all", function()
+      terminal(FINISHED)
+      local _, win = diff_on_screen()
+      watcher.start(handlers)
+      vim.wait(100)
+
+      vim.api.nvim_win_close(win, true)
+
+      assert.is_true(
+        vim.wait(1000, function()
+          return restored > 0
+        end, 20),
+        "Claude's finished-turn summary is still being read as a live status line"
+      )
+    end)
+
+    it("stays put while Claude is still working", function()
+      terminal(WORKING)
+      watcher.start(handlers)
+
+      vim.wait(300, function()
+        return restored > 0
+      end, 20)
+      assert.equals(0, restored, "the float came back over your work mid-turn")
     end)
   end)
 
