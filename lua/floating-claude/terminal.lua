@@ -31,6 +31,22 @@ end
 -- Leaving the float means you are looking at something else, so get out of the
 -- way. Any focus change counts -- a click elsewhere and a window command are
 -- the same intent expressed two ways.
+--
+-- The minimize is deferred a tick, but the decision to minimize is not, and
+-- the split matters.
+--
+-- Deferred action: claudecode.nvim's open_in_new_tab fires this same WinLeave
+-- as a side effect of its own `:tabnew`, synchronously, before the tab switch
+-- finishes -- so a notification opened inline binds its relative="editor"
+-- window to the tab being left, not the diff tab the user is headed to.
+-- Running it a tick later means nvim_get_current_tabpage() has settled.
+--
+-- Immediate decision: whether this leave is the user turning away or the
+-- plugin moving its own windows is only knowable now, while the move that
+-- fired it is still on the stack. quietly() clears suppress_auto as soon as
+-- it returns, which is before any scheduled callback runs -- so reading the
+-- flag from inside the deferred half would always find it false and minimize
+-- Claude the instant spawn() handed focus back.
 local function attach_leave(buf)
   vim.api.nvim_clear_autocmds({ group = group, buffer = buf })
   if not config.options.auto.minimize_on_leave then
@@ -44,7 +60,14 @@ local function attach_leave(buf)
       if state.suppress_auto or not state.win_valid() then
         return
       end
-      M.minimize()
+      vim.schedule(function()
+        -- A tick has passed: the float may have been closed or minimized by
+        -- something else in the meantime.
+        if state.suppress_auto or not state.win_valid() then
+          return
+        end
+        M.minimize()
+      end)
     end,
   })
 end
