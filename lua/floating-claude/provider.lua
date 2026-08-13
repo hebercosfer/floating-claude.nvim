@@ -86,16 +86,25 @@ end
 -- notification is for. With no diff pending, the caller asked for Claude and a
 -- corner notification is not what they meant.
 --
--- The diff-cleanup call is the subtle one, and it is safe for a reason worth
--- writing down. It arrives from diff.lua right after the diff tab is closed,
--- which sounds like "no diff pending" -- but the proposed buffer is scratch
--- with bufhidden="hide", so closing its window only hides it and it stays
--- loaded. diff_pending() looks at loaded buffers, so it still reports true and
--- we take the branch above. The post-diff restore therefore remains the
--- watcher's, gated on restore_idle_ms, which is what stops the float
--- reappearing during the lull before Claude resumes. If upstream ever wipes
--- that buffer instead of hiding it, this call starts restoring immediately and
--- that gating is lost.
+-- The diff-cleanup call is the subtle one, and it is why this asks
+-- diff_pending() (does a proposed buffer exist) where the watcher asks
+-- diff_visible() (is one on screen). It arrives from diff.lua right after the
+-- diff tab is closed, which sounds like "no diff pending" -- but the proposed
+-- buffer is scratch with bufhidden="hide", so closing its window only hides it
+-- and it stays loaded until the deletion a few lines later. diff_pending()
+-- looks at loaded buffers, so it still reports true and we take the branch
+-- above. The post-diff restore therefore remains the watcher's, gated on
+-- restore_idle_ms, which is what stops the float flapping back over your work
+-- during the lull before Claude resumes -- once per edit in a multi-edit turn.
+-- If upstream ever wipes that buffer instead of hiding it, this call starts
+-- restoring immediately and that gating is lost.
+--
+-- The cost of keeping the wider predicate here: a leftover hidden proposed
+-- buffer (a denied diff whose tab the user closed) also holds this branch, so
+-- a send in that state stays in the corner. The watcher restores within
+-- restore_idle_ms of the deny, which closes the window in which that can
+-- happen -- unless restore_on_input is off, and then staying put is at least
+-- the setting the user asked for.
 --
 -- Restoring takes focus, which upstream's no-focus intent argues against. The
 -- float is most of the editor: bringing it back over your buffer while the
