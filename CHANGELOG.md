@@ -34,6 +34,13 @@ new Claude UI can change what the auto-minimize does without changing the API.
   scratch and stays loaded. The watcher counted that leftover as a live diff,
   which reset the idle clock on every poll, so the restore never fired at all.
   It now asks whether a diff is *on screen* rather than whether one exists.
+- The corner notification no longer opens in the wrong tab with
+  `diff_opts.open_in_new_tab = true`. claudecode.nvim's own `:tabnew` fires our
+  focus-leave auto-minimize as a side effect, synchronously and before the tab
+  switch settles, so the notification's editor-relative window bound to the
+  tab being left rather than the diff's tab — invisible the moment focus
+  actually landed. The minimize now runs a tick later, once the switch has
+  settled.
 
 ## [0.2.0] - 2026-08-10
 
