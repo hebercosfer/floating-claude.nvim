@@ -49,6 +49,15 @@ new Claude UI can change what the auto-minimize does without changing the API.
   scratch and stays loaded. The watcher counted that leftover as a live diff,
   which reset the idle clock on every poll, so the restore never fired at all.
   It now asks whether a diff is *on screen* rather than whether one exists.
+- A finished turn no longer reads as a working one, which is what actually kept
+  the float in the corner after a diff — and after anything else. Claude leaves
+  a summary on screen when a turn ends (`● Ran the suite; two specs still red ·
+  44s`, under a frozen `✻ Cooked for 1m 40s`), and both carry a duration; the
+  status-line heuristic took a duration plus a mid-dot as proof of a running
+  spinner. `is_working()` was then true forever, so the idle clock the restore
+  waits on never started. It now keys off the live line's parenthesised elapsed
+  timer (`✽ Infusing… (8m 24s · ↓ 24.8k tokens)`), which is what a finished turn
+  drops.
 - The corner notification no longer opens in the wrong tab with
   `diff_opts.open_in_new_tab = true`. claudecode.nvim's own `:tabnew` fires our
   focus-leave auto-minimize as a side effect, synchronously and before the tab
