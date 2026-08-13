@@ -93,6 +93,41 @@ describe("parser", function()
       assert.is_false(parser.is_working())
     end)
 
+    -- The bug that kept the float in the corner for good. Transcribed off a
+    -- live screen: the turn is over, but the summary Claude leaves behind
+    -- carries a duration and a mid-dot, which the old heuristic read as a
+    -- running spinner. `busy` then never went false, the idle clock never
+    -- started, and nothing after a diff could bring the float back.
+    it("is idle once the turn ends, however the summary is punctuated", function()
+      buffer({
+        "  ⎿  Found 10 new diagnostic issues in 1 file (ctrl+o to expand)",
+        "",
+        "● Prioritized 2 leads (is_working flapping; the mini_win branch) · 44s",
+        "✻ Cooked for 1m 40s",
+        "  ⎿  Tip: Use /btw to ask a side question without interrupting Claude",
+        "                                                    ◉ xhigh · /effort",
+        RULE,
+        "❯ ",
+        RULE,
+      })
+      assert.is_false(parser.is_working())
+    end)
+
+    -- ...and the live line from the same screen still has to read as working,
+    -- which the interrupt hint no longer covers: this CLI does not render it.
+    it("sees the live line even without the interrupt hint", function()
+      buffer({
+        "● Prioritized 2 leads · 44s",
+        "",
+        "✽ Infusing… (8m 24s · ↓ 24.8k tokens)",
+        "  ⎿  Tip: Use /btw to ask a side question without interrupting Claude",
+        RULE,
+        "❯ ",
+        RULE,
+      })
+      assert.is_true(parser.is_working())
+    end)
+
     it("is false with no terminal buffer", function()
       state.buf = -1
       assert.is_false(parser.is_working())

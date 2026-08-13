@@ -142,9 +142,12 @@ two things:
 - **A pending diff** — claudecode.nvim shows edit approvals as native diff
   buffers named `✻ [Claude Code] <file> … (proposed)`. Their presence means the
   float is covering something you need to see, so it minimizes.
-- **The live status line** — Claude renders a spinner line (`✶ Baked for 17s …
-  (esc to interrupt)`) just above its input prompt while it works. Its absence
-  means Claude is idle.
+- **The live status line** — Claude renders a spinner line (`✽ Infusing… (8m 24s
+  · ↓ 24.8k tokens)`) just above its input prompt while it works. Its absence
+  means Claude is idle. A duration alone does not make a line live: when the
+  turn ends that same line freezes into `✻ Cooked for 1m 40s` and a summary
+  lands under it, both carrying one. The parenthesised elapsed timer is what
+  separates them.
 
 Restore waits for _sustained_ idle (`restore_idle_ms`) after a busy→idle
 transition, so the brief lull between approving a diff and Claude resuming
@@ -181,8 +184,9 @@ Claude *stay* minimized while you resolve a diff — and the `claudecode.diff`
 buffer names `parser.diff_pending()` matches. Its in-source version field lags
 its tags (the v0.3.0 tree still reports `0.2.0`), so the number is treated as a
 floor and the rest is feature-detected. From the CLI we need the rule-framed
-input prompt and the live `✶ … 17s … (esc to interrupt)` line above it; an older
-UI parses as "always idle".
+input prompt and, above it while a turn runs, a spinner line carrying its
+elapsed time in parentheses — `✽ … (8m 24s · …)`, or the older `… (esc to
+interrupt)`. A UI that renders neither parses as "always idle".
 
 A mismatch is a warning, never a hard failure: the float still works, the
 automatic minimize/restore is what degrades. To freeze the tested pair instead
