@@ -24,6 +24,7 @@ if os.getenv("FLOATING_CLAUDE_INTEGRATION") ~= "1" then
 end
 
 local compat = require("floating-claude.compat")
+local parser = require("floating-claude.parser")
 local provider = require("floating-claude.provider")
 
 local CLAUDECODE_DIR = os.getenv("CLAUDECODE_DIR")
@@ -110,6 +111,109 @@ describe("upstream claudecode.nvim", function()
     local report = compat.claudecode()
     assert.is_true(report.installed)
     assert.same({}, report.problems)
+  end)
+end)
+
+-- parser.lua asks two questions about a diff -- does a proposed buffer exist,
+-- and is one on screen -- and the split is only worth its weight because of how
+-- upstream ends a denied diff. So drive a real one and watch what it leaves.
+--
+-- This reaches for diff._setup_blocking_diff, an internal: the public
+-- open_diff_blocking wants a coroutine and the MCP deferred-response plumbing
+-- around it. A rename would break this spec, which is the kind of news the
+-- Compat workflow is for.
+describe("a denied diff", function()
+  local diff = require("claudecode.diff")
+  local target, proposed, resolution
+
+  before_each(function()
+    -- Same layout as the same-tab default; where the diff lives does not change
+    -- what is left behind, and this needs no terminal to move around.
+    diff.setup({ diff_opts = { open_in_new_tab = false } })
+
+    target = vim.fn.tempname() .. ".lua"
+    vim.fn.writefile({ "local x = 1", "return x" }, target)
+    vim.cmd.edit(vim.fn.fnameescape(target))
+
+    resolution = nil
+    diff._setup_blocking_diff({
+      old_file_path = target,
+      new_file_path = target,
+      new_file_contents = "local x = 2\nreturn x\n",
+      tab_name = "✻ [Claude Code] " .. vim.fn.fnamemodify(target, ":t") .. " (a1b2c3) ⧉",
+    }, function(result)
+      resolution = result.content and result.content[1] and result.content[1].text
+    end)
+
+    proposed = nil
+    for _, buf in ipairs(vim.api.nvim_list_bufs()) do
+      if vim.api.nvim_buf_get_name(buf):find("(proposed)", 1, true) then
+        proposed = buf
+      end
+    end
+    assert.is_not_nil(proposed, "upstream created no (proposed) buffer; the diff never opened")
+  end)
+
+  after_each(function()
+    vim.cmd("silent! tabonly | silent! only")
+    if proposed and vim.api.nvim_buf_is_valid(proposed) then
+      vim.api.nvim_buf_delete(proposed, { force = true })
+    end
+    vim.cmd("silent! %bwipeout!")
+    vim.fn.delete(target)
+  end)
+
+  it("is what ClaudeCodeDiffDeny resolves it to", function()
+    vim.api.nvim_set_current_win(vim.fn.win_findbuf(proposed)[1])
+    diff.deny_current_diff()
+    assert.equals("DIFF_REJECTED", resolution)
+  end)
+
+  it("stays on screen, so the float stays out of the way", function()
+    vim.api.nvim_set_current_win(vim.fn.win_findbuf(proposed)[1])
+    diff.deny_current_diff()
+
+    -- deny_current_diff: "Do not close windows/tabs here; just mark as
+    -- rejected." Teardown waits for the CLI's close_tab, which may never come.
+    assert.is_true(
+      parser.diff_visible(),
+      "upstream now closes the diff on deny; check the watcher still minimizes"
+    )
+  end)
+
+  it("leaves its buffer loaded when the user closes it by hand", function()
+    vim.api.nvim_set_current_win(vim.fn.win_findbuf(proposed)[1])
+    diff.deny_current_diff()
+    for _, win in ipairs(vim.fn.win_findbuf(proposed)) do
+      vim.api.nvim_win_close(win, true)
+    end
+
+    -- The bug this split fixes: scratch + bufhidden="hide" means the buffer
+    -- outlives its window, and treating that as a live diff pinned the float in
+    -- the corner forever.
+    assert.is_true(
+      vim.api.nvim_buf_is_loaded(proposed),
+      "upstream now deletes the proposed buffer on deny; parser.diff_visible() may have outlived its reason"
+    )
+    assert.is_true(
+      parser.diff_pending(),
+      "diff_pending() must still see it -- provider.ensure_visible leans on that"
+    )
+    assert.is_false(
+      parser.diff_visible(),
+      "nothing is on screen, so nothing should keep Claude minimized"
+    )
+  end)
+
+  it("is cleaned up whole once close_tab arrives", function()
+    vim.api.nvim_set_current_win(vim.fn.win_findbuf(proposed)[1])
+    local tab_name = vim.b[proposed].claudecode_diff_tab_name
+    diff.deny_current_diff()
+    diff.close_diff_by_tab_name(tab_name)
+
+    assert.is_false(vim.api.nvim_buf_is_loaded(proposed))
+    assert.is_false(parser.diff_pending())
+    assert.is_false(parser.diff_visible())
   end)
 end)
 

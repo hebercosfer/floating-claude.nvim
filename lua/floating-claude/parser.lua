@@ -93,21 +93,47 @@ end
 -- claudecode.nvim shows an edit approval as a native diff (not a terminal
 -- prompt): the proposed side is a scratch buffer (buftype=acwrite) named like
 -- "✻ [Claude Code] <file> (<hash>) ⧉ (proposed)" or "… (NEW FILE - proposed)"
--- (claudecode/diff.lua, confirmed via a live capture). Our editor-relative
--- float sits on top of those splits, so the presence of such a buffer is the
--- cue to drop out of the way. The "(New)" names are an older fallback path.
+-- (claudecode/diff.lua, confirmed via a live capture). The "(New)" names are an
+-- older fallback path.
+local function is_diff_name(name)
+  return name:find("[Claude Code]", 1, true) ~= nil
+    or name:find("proposed)", 1, true) ~= nil
+    or name:match("%(New%)$") ~= nil
+    or name:match("%(NEW FILE%)$") ~= nil
+end
+
+-- Two questions about a diff, and they are not the same question.
+--
+-- Upstream tears a diff down in one place, _cleanup_diff_state, which it runs
+-- only when the CLI sends close_tab. Nothing else deletes the proposed buffer:
+-- it is scratch with bufhidden="hide", so closing its window merely hides a
+-- still-loaded buffer. A denied diff is where the two come apart, because
+-- deny_current_diff deliberately leaves the tab open ("Do not close
+-- windows/tabs here; just mark as rejected") and the user is then the one who
+-- closes it -- which hides the buffer without deleting it. Confirmed against
+-- claudecode.nvim @ 2390c6e.
+
+--- Does a proposed-changes buffer exist at all -- displayed or hidden?
+--- The narrow question, for the moment during upstream's own cleanup when the
+--- diff has left the screen but its buffer is still loaded. See provider.lua.
 function M.diff_pending()
   for _, b in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_loaded(b) then
-      local name = vim.api.nvim_buf_get_name(b)
-      if
-        name:find("[Claude Code]", 1, true)
-        or name:find("proposed)", 1, true)
-        or name:match("%(New%)$")
-        or name:match("%(NEW FILE%)$")
-      then
-        return true
-      end
+    if vim.api.nvim_buf_is_loaded(b) and is_diff_name(vim.api.nvim_buf_get_name(b)) then
+      return true
+    end
+  end
+  return false
+end
+
+--- Is a diff actually on screen, in some window, in any tabpage?
+--- The question that matters for staying out of the way: our float is
+--- editor-relative and covers a diff it is drawn over, while a hidden leftover
+--- covers nothing and must not keep Claude in the corner forever.
+function M.diff_visible()
+  for _, w in ipairs(vim.api.nvim_list_wins()) do
+    local buf = vim.api.nvim_win_get_buf(w)
+    if is_diff_name(vim.api.nvim_buf_get_name(buf)) then
+      return true
     end
   end
   return false
