@@ -62,6 +62,9 @@ describe("focus", function()
       terminal.open_window()
       assert.is_true(state.win_valid())
       other = elsewhere()
+      vim.wait(50, function()
+        return state.mini_win_valid()
+      end, 5)
       assert.is_false(state.win_valid(), "the float should have been minimized")
       assert.is_true(state.mini_win_valid(), "the notification should be up")
     end)
@@ -70,6 +73,7 @@ describe("focus", function()
       config.setup({ auto = { minimize_on_leave = false } })
       terminal.open_window()
       other = elsewhere()
+      vim.wait(50)
       assert.is_true(state.win_valid(), "the float should still be open")
     end)
 
@@ -80,8 +84,58 @@ describe("focus", function()
       terminal.open_window()
       state.suppress_auto = true
       other = elsewhere()
+      vim.wait(50)
       assert.is_true(state.win_valid(), "our own move should not minimize")
       state.suppress_auto = false
+    end)
+
+    -- ...and it has to survive the flag being cleared on the same tick the
+    -- move finishes, which is what quietly() actually does. Holding
+    -- suppress_auto across the whole wait, as the spec above does, would let a
+    -- guard that only reads the flag a tick later pass while spawn(focus=false)
+    -- minimized Claude the moment it launched.
+    it("stays quiet even though quietly() clears the flag synchronously", function()
+      -- Made before the float exists, so creating it cannot itself queue a
+      -- leave: this spec is about the handback and nothing else.
+      other = elsewhere()
+      terminal.open_window()
+      assert.is_true(state.win_valid())
+
+      -- Exactly quietly()'s shape: set, move, reset, all on this tick.
+      state.suppress_auto = true
+      vim.api.nvim_set_current_win(other)
+      state.suppress_auto = false
+
+      vim.wait(50)
+      assert.is_true(state.win_valid(), "the handback should not have minimized the float")
+      assert.is_false(state.mini_win_valid(), "and no notification should have opened")
+    end)
+
+    -- The regression: claudecode.nvim's open_in_new_tab fires this same
+    -- WinLeave as a side effect of its own `:tabnew`, synchronously and
+    -- before the tab switch settles. A notification opened inline binds to
+    -- the tab being left rather than the one the diff lives in, so it is
+    -- invisible the moment focus actually lands on the new tab.
+    it("puts the notification in the tab focus is landing on, not the one it left", function()
+      terminal.open_window()
+      local left_tab = vim.api.nvim_get_current_tabpage()
+
+      vim.cmd("tabnew")
+      local arrived_tab = vim.api.nvim_get_current_tabpage()
+      assert.are_not.equal(left_tab, arrived_tab, "fixture needs :tabnew to actually change tabs")
+
+      assert.is_false(
+        state.mini_win_valid(),
+        "minimizing inline, before the tab switch settles, is exactly the bug"
+      )
+      vim.wait(50, function()
+        return state.mini_win_valid()
+      end, 5)
+
+      assert.is_true(state.mini_win_valid())
+      assert.equals(arrived_tab, vim.api.nvim_win_get_tabpage(state.mini_win))
+
+      vim.cmd("tabclose")
     end)
   end)
 
