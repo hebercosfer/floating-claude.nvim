@@ -188,4 +188,59 @@ describe("parser", function()
       assert.is_false(parser.diff_pending())
     end)
   end)
+
+  describe("diff_visible", function()
+    local diff_buf
+
+    -- The proposed side as upstream builds it: an unlisted scratch buffer,
+    -- which is bufhidden="hide", so closing its window leaves it loaded.
+    local function proposed()
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_name(buf, "✻ [Claude Code] init.lua (a1b2c3) ⧉ (proposed)")
+      return buf
+    end
+
+    after_each(function()
+      vim.cmd("silent! tabonly | silent! only")
+      if diff_buf and vim.api.nvim_buf_is_valid(diff_buf) then
+        vim.api.nvim_buf_delete(diff_buf, { force = true })
+      end
+      diff_buf = nil
+    end)
+
+    it("is false with no diff buffers around", function()
+      assert.is_false(parser.diff_visible())
+    end)
+
+    it("is true while the proposed side is in a window", function()
+      diff_buf = proposed()
+      vim.cmd("split")
+      vim.api.nvim_win_set_buf(0, diff_buf)
+      assert.is_true(parser.diff_visible())
+    end)
+
+    it("sees a diff sitting in another tabpage", function()
+      -- open_in_new_tab puts the diff somewhere the current tab cannot see,
+      -- and the float would still be drawn over it on the way back.
+      diff_buf = proposed()
+      vim.cmd("tabnew")
+      vim.api.nvim_win_set_buf(0, diff_buf)
+      vim.cmd("tabprevious")
+      assert.is_true(parser.diff_visible())
+    end)
+
+    it("is false once the window closes, though the buffer is still loaded", function()
+      -- The regression: a denied diff whose tab the user closed by hand.
+      -- diff_pending() still says yes and must -- see provider.lua -- but
+      -- counting this as busy kept the float in the corner forever.
+      diff_buf = proposed()
+      vim.cmd("split")
+      vim.api.nvim_win_set_buf(0, diff_buf)
+      vim.cmd("close")
+
+      assert.is_true(vim.api.nvim_buf_is_loaded(diff_buf))
+      assert.is_true(parser.diff_pending())
+      assert.is_false(parser.diff_visible())
+    end)
+  end)
 end)

@@ -28,6 +28,12 @@ new Claude UI can change what the auto-minimize does without changing the API.
   you with the corner notification. Staying minimized is still what happens
   while an edit-approval diff is on screen, which is the one case it was meant
   for.
+- The float comes back after a **denied** diff. Denying does not tear the diff
+  down — claudecode.nvim waits for the CLI's `close_tab` for that — so the tab
+  lingers, and closing it by hand only hides its proposed buffer, which is
+  scratch and stays loaded. The watcher counted that leftover as a live diff,
+  which reset the idle clock on every poll, so the restore never fired at all.
+  It now asks whether a diff is *on screen* rather than whether one exists.
 
 ## [0.2.0] - 2026-08-10
 

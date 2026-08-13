@@ -27,10 +27,15 @@ end
 --     otherwise be hidden behind the float);
 --   * float minimized + Claude settles idle       -> restore (Claude is now
 --     waiting for the user or done), UNLESS a diff is still up (review that).
--- "Busy" = actively working OR a diff pending. Restore waits for SUSTAINED idle
--- (`restore_idle_ms`) after a busy->idle transition: the brief lull between a
--- diff being approved/denied and Claude resuming work is not enough to pop the
--- float -- it only returns when interaction is requested or the task completes.
+-- "Busy" = actively working OR a diff on screen. On screen, not merely loaded:
+-- a diff the user denied and then closed leaves its proposed buffer hidden but
+-- alive (see parser.lua), and counting that as busy resets the idle clock on
+-- every poll, so the float never comes back at all.
+--
+-- Restore waits for SUSTAINED idle (`restore_idle_ms`) after a busy->idle
+-- transition: the brief lull between a diff being approved/denied and Claude
+-- resuming work is not enough to pop the float -- it only returns when
+-- interaction is requested or the task completes.
 -- The transition gating also means a manual minimize while Claude is already
 -- idle is never fought (no busy->idle edge => idle_since never starts).
 --
@@ -52,7 +57,7 @@ function M.start(handlers)
         M.stop()
         return
       end
-      local has_diff = parser.diff_pending()
+      local has_diff = parser.diff_visible()
       local busy = has_diff or parser.is_working()
       if state.win_valid() then
         if opts.minimize_on_diff and has_diff then
