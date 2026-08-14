@@ -144,7 +144,12 @@ describe("focus", function()
       other = elsewhere()
       notification.show()
       assert.is_true(state.mini_win_valid())
-      vim.api.nvim_set_current_win(state.mini_win)
+      -- pcall, because succeeding here looks like failing on Neovim 0.10.
+      -- Entering the notification fires WinEnter, which restores the float and
+      -- closes this very window before the call returns -- so 0.10 reports
+      -- "Failed to switch to window N" for having landed somewhere else. That
+      -- is the feature working. The assertions below are the real check.
+      pcall(vim.api.nvim_set_current_win, state.mini_win)
       assert.is_true(state.win_valid(), "the float should be back")
       assert.is_false(state.mini_win_valid(), "the notification should be gone")
     end)
