@@ -1,3 +1,6 @@
 doc/tags
 .luarc.local.json
 .tests/
+# Claude Code writes per-machine permission grants here, absolute paths and all.
+# .claude/commands/ is shared; this file is not.
+.claude/settings.local.json
