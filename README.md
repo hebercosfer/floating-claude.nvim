@@ -259,9 +259,12 @@ into `package.loaded` instead, so the "not installed" path stays reachable and
 the suite never depends on which version happens to be checked out. Claude Code
 is stubbed the same way, by a shell script that prints a version string.
 
-GitHub Actions runs the same `make test` on Neovim 0.10.4 (the floor above),
-0.11.7, 0.12.4 and nightly, plus `stylua --check`. A nightly failure is reported
-but does not fail the run.
+GitHub Actions runs the same `make test` on Neovim 0.10.4 — the floor above, and
+the newest 0.10 there is — plus `stylua --check`. That is the whole matrix: this
+line exists for 0.10, so 0.10 is what it proves, and newer releases are `main`'s
+to cover. The weekly `Compat` workflow pins the same 0.10.4 and lets everything
+else float, so a red run there means claudecode.nvim or the CLI drifted rather
+than that Neovim moved on.
 
 ## Layout
 

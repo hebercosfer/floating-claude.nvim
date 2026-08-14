@@ -16,17 +16,18 @@ jobs:
   test:
     name: test (nvim ${{ matrix.neovim }})
     runs-on: ubuntu-latest
-    # nightly breaking is Neovim's news, not ours -- report it without failing
-    # the run.
-    continue-on-error: ${{ matrix.neovim == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
+        # This line exists for 0.10, so 0.10 is the only thing it proves. Newer
+        # releases are main's to cover: a green 0.12 here says nothing about the
+        # runtime anyone pins ~0.1.0 for, and nightly would only ever report
+        # that Neovim moved on -- which is the news main is for.
+        #
+        # Kept as a matrix of one so the job name stays "test (nvim vX)" and the
+        # aggregator below keeps working unchanged when the floor moves.
         neovim:
-          - v0.10.4 # the floor the README promises
-          - v0.11.7
-          - v0.12.4
-          - nightly
+          - v0.10.4 # the floor the README promises, and the newest 0.10 there is
 
     steps:
       - uses: actions/checkout@v7
@@ -74,8 +75,9 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Fail unless the whole matrix passed
-        # 'success' only when every leg passed. nightly is continue-on-error,
-        # so its breakage never reaches here -- the call ci.yml already makes.
+        # 'success' only when every leg passed. This line's matrix is one leg
+        # today, but the job stays: it is the required context, and it must not
+        # have to change if the floor ever gains a second version to prove.
         run: |
           echo "matrix result: ${{ needs.test.result }}"
           [ "${{ needs.test.result }}" = "success" ]
