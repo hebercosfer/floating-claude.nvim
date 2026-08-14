@@ -44,10 +44,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Only reads compat.lua and compares version strings, so the runtime
+      # barely matters -- but it is this line's runtime for the same reason as
+      # the job below, and it means compat.lua is at least parsed by the Neovim
+      # this branch ships for.
       - uses: rhysd/action-setup-vim@v1
         with:
           neovim: true
-          version: stable
+          version: v0.10.4
 
       - name: Compare compat.lua against what is actually shipping
         id: compare
@@ -100,14 +104,21 @@ jobs:
   integration:
     name: contract (nvim ${{ matrix.neovim }})
     runs-on: ubuntu-latest
-    # A nightly Neovim break is Neovim's news, not ours -- same call ci.yml makes.
-    continue-on-error: ${{ matrix.neovim == 'nightly' }}
     strategy:
       fail-fast: false
       matrix:
+        # Neovim is the one thing this workflow does *not* let float. Everything
+        # else here is deliberately unpinned -- claudecode.nvim's main, the CLI
+        # from npm -- because upstream drift is the whole question. Answering it
+        # on Neovim stable or nightly would answer it for main's runtime, not
+        # this one: a contract that holds on 0.13-dev tells a 0.10 user nothing,
+        # and a break there could as easily be Neovim's news as upstream's.
+        #
+        # So pin the runtime and let the dependencies move. That is what makes a
+        # red run here mean "upstream drifted", which is the only thing this
+        # workflow is for.
         neovim:
-          - stable
-          - nightly
+          - v0.10.4 # this line's floor, and the newest 0.10 there is
     steps:
       - uses: actions/checkout@v7
 
