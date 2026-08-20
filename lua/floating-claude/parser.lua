@@ -240,9 +240,14 @@ local function render_block(lines, first, last, column, budget)
   -- what Claude is working on -- but never above an answer, where it is just
   -- the seam between two turns.
   if is_prompt_echo(lines[first]) then
-    return unwrap(lines, first, math.min(last, first + budget - 1), column),
-      "echo",
-      last - first + 1
+    local block = unwrap(lines, first, math.min(last, first + budget - 1), column)
+    -- An empty prompt is not something you asked; it is the cursor sitting
+    -- there. Skip it, so the body falls through to what Claude last said.
+    local typed = block[1]:sub(#PROMPT_GLYPH + 1):gsub("^%s+", ""):gsub("%s+$", "")
+    if #block == 1 and typed == "" then
+      return nil
+    end
+    return block, "echo", last - first + 1
   end
 
   local result
@@ -461,7 +466,11 @@ local SENTENCE_OPENERS = { '"', "'", "`", "(", "[", "“", "‘" }
 local ABBREVIATIONS = { "e.g.", "i.e.", "cf.", "vs.", "Dr.", "Mr.", "Mrs.", "Ms.", "St." }
 
 local function opens_sentence(rest)
-  if rest:sub(1, 1):match("%u") then
+  -- A digit counts: "…restart to see it. 110 specs pass" is two sentences, and
+  -- a number almost never opens a clause in the middle of one. The version and
+  -- decimal cases this might be confused with -- 0.10, 1.4k -- have no space
+  -- after the stop, so they never reach here.
+  if rest:sub(1, 1):match("[%u%d]") then
     return true
   end
   for _, opener in ipairs(SENTENCE_OPENERS) do
