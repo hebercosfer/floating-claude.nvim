@@ -21,6 +21,26 @@ new Claude UI can change what the auto-minimize does without changing the API.
   option each. `restore_on_enter` also makes the notification focusable, which
   is what lets a click reach it.
 
+### Changed
+
+- The corner notification now says what Claude is doing in its title and keeps
+  the body for what Claude is saying. The title carries the status verb, how
+  long the turn has been running and the tokens pulled down (`✽ Infusing… 8m
+  24s ↓24.8k`), or the frozen marker once the turn ends (`✓ Cooked for 1m
+  40s`); `notification.status_in_title = false` puts that back under the
+  message, where it used to live.
+- The body reads as prose rather than as terminal wreckage. Claude hard-wraps
+  its output at the float's width, so tailing those lines into a 64-column
+  notification re-wrapped fragments that were already broken — the ragged,
+  half-aligned columns it used to show. The wrap is now undone before the
+  notification re-wraps the paragraph at its own width, on word boundaries and
+  with a column of padding off the border. Tool calls collapse to the single
+  line naming what is running instead of spilling their output into the corner,
+  and tips are skipped. The echo of your own prompt is the edge of the turn, so
+  the paragraph `gaps` reaches for can never come from the previous one; while
+  Claude is working and has not said anything yet, that echo is what the body
+  shows, since what you asked is what Claude is doing.
+
 ### Fixed
 
 - Sending to Claude while it is minimized (`:ClaudeCodeSend`, and anything else
