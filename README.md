@@ -93,6 +93,7 @@ require("floating-claude").setup({
     max_lines = 12,     -- hard cap on terminal lines tailed
     gaps = 1,           -- blank separators the tail may cross
     border = "rounded",
+    status_in_title = true,  -- Claude's state in the title, not the body
     title = " Claude ",
     title_pos = "center",
     zindex = 60,
@@ -155,8 +156,18 @@ doesn't pop the float back over your work. Because the clock only starts on a
 real busy→idle edge, a manual minimize while Claude is already idle is never
 undone by the watcher.
 
-The same scraping feeds the notification: it tails the status line plus the
-message paragraph above it, refreshing every `refresh_ms`.
+The same scraping feeds the notification, refreshing every `refresh_ms`, and it
+keeps the two apart. Claude's state goes in the title — `✽ Infusing… 8m 24s
+↓24.8k` while it works, `✓ Cooked for 1m 40s` for the turn it just finished —
+which leaves the body for what Claude is actually saying. Claude hard-wraps its
+prose at the float's width, so the body undoes that wrap before re-wrapping it
+at the notification's own; otherwise every paragraph arrives pre-broken at the
+wrong column and stacks up ragged. A tool call collapses to the one line naming
+what is running rather than spilling its output into the corner. The echo of
+your own prompt bounds the tail, so one turn never shows the last one, and it
+stands in as the body while Claude is working but has not said anything yet —
+what you asked is what Claude is doing. Set `status_in_title = false` to put the
+state back under the message instead.
 
 Focus moves the float too, which is what makes the mouse work. Leaving the
 float minimizes it (`minimize_on_leave`) and entering the notification restores
