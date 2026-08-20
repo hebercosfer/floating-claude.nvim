@@ -270,6 +270,20 @@ describe("parser", function()
       assert.same({ "❯ and what about the notification?" }, parser.status_lines())
     end)
 
+    it("skips an empty prompt, which is a cursor and not a question", function()
+      buffer({
+        "  Claude's answer, from the turn that just ended.",
+        "",
+        "✻ Cooked for 1m 40s",
+        "",
+        "❯ ",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "Claude's answer, from the turn that just ended." }, parser.status_lines())
+    end)
+
     it("stops at the prompt you typed, so one turn never shows the last", function()
       buffer({
         "  An answer from the turn before.",
@@ -327,6 +341,16 @@ describe("parser", function()
     it("keeps a line with no terminator at all", function()
       buffer({ "  Ran 13 shell commands", RULE, " > ", RULE })
       assert.same({ "Ran 13 shell commands" }, parser.status_lines())
+    end)
+
+    it("ends a sentence before a number, which opens one often enough", function()
+      buffer({
+        "● Pushed as 79175bc on the same branch. 110 specs pass, lint clean.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "● Pushed as 79175bc on the same branch…" }, parser.status_lines())
     end)
 
     it("does not end a sentence inside a version or a path", function()
