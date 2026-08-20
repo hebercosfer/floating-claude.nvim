@@ -107,6 +107,148 @@ local function is_status_line(line)
   return leads_with_spinner(s) and s:find("%(%s*%d+[hms]") ~= nil
 end
 
+-- How a turn ENDS. The spinner line freezes into a marker -- past tense, timer
+-- bare rather than inside a detail group -- and that marker is the only place
+-- the finished turn's cost is stated:
+--
+--   ✻ Cooked for 1m 40s
+--
+-- is_status_line() must keep reading this as idle (see the note above it); the
+-- notification uses it as its caption while Claude waits.
+local function done_marker(line)
+  if line == nil then
+    return nil
+  end
+  local s = line:gsub("^%s+", ""):gsub("%s+$", "")
+  if not leads_with_spinner(s) or s:find("(", 1, true) then
+    return nil
+  end
+  local rest = s:gsub("^%S+%s*", "")
+  return rest:match("^%a+ for %d+[hms]") and rest or nil
+end
+
+-- Furniture: lines about the UI rather than the conversation.
+local function is_tip(line)
+  return line:find("Tip:", 1, true) ~= nil
+end
+
+-- The user's own prompt, echoed back into the transcript. Its continuation
+-- lines are indented exactly like Claude's prose, so an echo is only ever
+-- recognisable from the first line of its block.
+local PROMPT_GLYPH = "❯"
+
+local function is_prompt_echo(line)
+  return line:gsub("^%s+", ""):sub(1, #PROMPT_GLYPH) == PROMPT_GLYPH
+end
+
+-- A tool call renders as a header line plus the result, indented under a corner
+-- glyph:
+--
+--   Dumping the live Claude terminal buffer via RPC
+--   ⎿  $ cat > /tmp/…/dump.lua <<'LUA'
+--      local out = {}
+--
+-- The result is laid out for the float's width, so re-wrapping it into a 64
+-- column notification is what shredded it into ragged, table-looking columns.
+-- Collapse the block to its header instead: what Claude is doing, in one line.
+local TOOL_RESULT = "⎿"
+
+local function is_tool_result(line)
+  return line:gsub("^%s+", ""):sub(1, #TOOL_RESULT) == TOOL_RESULT
+end
+
+-- Claude's own bullets and list markers, which start a line of their own rather
+-- than continuing the one above.
+local BULLETS = { "●", "•", "○", "◦", "-", "*", "+", ">", "|" }
+
+local function starts_item(body)
+  for _, b in ipairs(BULLETS) do
+    if body:sub(1, #b) == b and (body:sub(#b + 1, #b + 1) == " " or b == "|") then
+      return true
+    end
+  end
+  return body:match("^%d+[%.%)]%s") ~= nil
+end
+
+-- Non-breaking spaces come through the TUI in status bars and tips; they are
+-- spaces everywhere we care, and converting them keeps trimming honest.
+local function clean(line)
+  return (line:gsub("\194\160", " "):gsub("%s+$", ""))
+end
+
+-- The column Claude wraps its prose at. The rules framing the input box are
+-- drawn to the full terminal width, which is exactly that number; failing
+-- those, the widest line in the buffer is the best guess available.
+local function wrap_column(lines)
+  local width = 0
+  for _, line in ipairs(lines) do
+    if is_rule(line) then
+      width = math.max(width, vim.fn.strdisplaywidth(line))
+    end
+  end
+  if width == 0 then
+    for _, line in ipairs(lines) do
+      width = math.max(width, vim.fn.strdisplaywidth(clean(line)))
+    end
+  end
+  return width > 0 and width or 80
+end
+
+-- Undo the TUI's hard wrap: a line that runs to (or near) the wrap column is
+-- continued by the line below, so the two are one sentence that we re-wrap at
+-- the notification's own width. The slack absorbs the long word that got pushed
+-- down -- a path or a URL leaves a short line behind it.
+local function unwrap(lines, first, last, column)
+  local slack = math.max(12, math.floor(column * 0.12))
+  local out, previous = {}, 0
+  for i = first, last do
+    local text = clean(lines[i])
+    local body = text:gsub("^%s+", "")
+    if #out > 0 and previous >= column - slack and not starts_item(body) then
+      out[#out] = out[#out] .. " " .. body
+    else
+      table.insert(out, body)
+    end
+    previous = vim.fn.strdisplaywidth(text)
+  end
+  return out
+end
+
+-- One blank-separated block of the transcript, as the notification wants it:
+-- prose unwrapped, a tool call reduced to its header, and the furniture (the
+-- live status line, the frozen marker, tips, the echo of what you typed) thrown
+-- away. Returns nil for furniture, plus the kind and the lines consumed.
+local function render_block(lines, first, last, column, budget)
+  if is_status_line(lines[first]) or done_marker(lines[first]) or is_prompt_echo(lines[first]) then
+    return nil
+  end
+
+  local result
+  for i = first, last do
+    if is_tool_result(lines[i]) then
+      result = i
+      break
+    end
+  end
+
+  if result then
+    local header = clean(lines[first]):gsub("^%s+", "")
+    if result == first then
+      header = header:sub(#TOOL_RESULT + 1):gsub("^%s+", "")
+    end
+    if is_tip(header) or header == "" then
+      return nil
+    end
+    return { TOOL_RESULT .. " " .. header }, "tool", last - first + 1
+  end
+
+  if is_tip(clean(lines[first])) then
+    return nil
+  end
+  local consumed = math.min(last, first + budget - 1)
+  return unwrap(lines, first, consumed, column), "prose", consumed - first + 1
+end
+
 -- claudecode.nvim shows an edit approval as a native diff (not a terminal
 -- prompt): the proposed side is a scratch buffer (buftype=acwrite) named like
 -- "✻ [Claude Code] <file> (<hash>) ⧉ (proposed)" or "… (NEW FILE - proposed)"
@@ -183,10 +325,13 @@ local function input_boundary(lines)
   return #lines + 1
 end
 
--- The current task status: the trailing block of conversation output that sits
--- ABOVE the input prompt box -- the spinner/status line ("✶ Baked for 17s")
--- plus the message paragraph before it. Falls back to a plain tail if no box
--- has been rendered yet.
+-- What the notification shows: the newest block of the transcript worth
+-- reading, cleaned up. "Newest" skips the furniture -- the live status line and
+-- the frozen end-of-turn marker both belong in the title now, and the echo of
+-- your own prompt is not news -- so what lands here is either what Claude last
+-- said or the tool it is running. Prose is unwrapped from the float's width so
+-- the notification can wrap it at its own; `gaps` blank separators may be
+-- crossed to keep the paragraph above it in view.
 function M.status_lines()
   if not state.buf_valid() then
     return { "(Claude Code is not running)" }
@@ -195,68 +340,123 @@ function M.status_lines()
   local opts = config.options.notification
   local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
   local function blank(i)
-    return lines[i] == nil or lines[i]:gsub("%s+$", "") == ""
+    return lines[i] == nil or clean(lines[i]) == ""
   end
 
-  -- The input box bounds the bottom; everything above it is the conversation.
+  local boundary = input_boundary(lines)
+  local column = wrap_column(lines)
+
+  local out, gaps, budget = {}, 0, opts.max_lines
+  local i = boundary - 1
+  while i >= 1 and budget > 0 do
+    if is_rule(lines[i]) or is_box_top(lines[i]) then
+      break
+    elseif blank(i) then
+      -- Blanks below the first block found are just the gap above the prompt.
+      if #out > 0 then
+        gaps = gaps + 1
+        if gaps > opts.gaps then
+          break
+        end
+      end
+      i = i - 1
+    else
+      local first = i
+      while
+        first > 1
+        and not blank(first - 1)
+        and not is_rule(lines[first - 1])
+        and not is_box_top(lines[first - 1])
+      do
+        first = first - 1
+      end
+
+      local block, kind, consumed = render_block(lines, first, i, column, budget)
+      if not block and #out > 0 then
+        -- Furniture above prose is the edge of the turn -- the status line it
+        -- started with, or the echo of the prompt before it. Stopping here is
+        -- what keeps `gaps` from stitching the previous turn onto this one.
+        break
+      end
+      if block then
+        -- Only prose stacks: a tool call stands alone, and once we have prose
+        -- anything else above it belongs to an older part of the turn.
+        if #out > 0 and kind ~= "prose" then
+          break
+        end
+        if #out > 0 then
+          table.insert(out, 1, "")
+        end
+        for k = #block, 1, -1 do
+          table.insert(out, 1, block[k])
+        end
+        budget = budget - consumed
+        if kind == "tool" then
+          break
+        end
+      end
+      i = first - 1
+    end
+  end
+
+  if #out == 0 then
+    return { "(no output yet)" }
+  end
+  return out
+end
+
+-- Everything the notification title wants to say, read off the one live line:
+--
+--   ✽ Infusing… (8m 24s · ↓ 24.8k tokens)
+--   │ │          │          └ tokens
+--   │ │          └ elapsed
+--   │ └ verb
+--   └ glyph, which cycles as Claude works -- passing it through animates the
+--     title for free.
+--
+-- With no live line the frozen marker stands in (`done`), so a finished turn
+-- still says what it cost. Both nil means Claude is waiting on you.
+--- @return { working: boolean, glyph: string|nil, verb: string|nil, elapsed: string|nil, tokens: string|nil, done: string|nil }
+function M.status()
+  local out = { working = false }
+  if not state.buf_valid() then
+    return out
+  end
+
+  local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
   local boundary = input_boundary(lines)
 
-  -- The live status/spinner line (the current task) sits just above the box,
-  -- though a "Tip:"/blank footer line may sit between them. Look for it in a
-  -- small window; otherwise fall back to the last message line (idle).
-  local last
   for i = boundary - 1, math.max(1, boundary - 6), -1 do
     if is_rule(lines[i]) or is_box_top(lines[i]) then
       break
     end
     if is_status_line(lines[i]) then
-      last = i
-      break
-    end
-  end
-  if not last then
-    for i = boundary - 1, 1, -1 do
-      if not blank(i) then
-        last = i
-        break
+      local s = clean(lines[i]):gsub("^%s+", "")
+      local rest = s:gsub("^%S+%s*", "")
+      local verb, detail = rest:match("^(.-)%s*%((.*)%)$")
+      out.working = true
+      out.glyph = s:match("^(%S+)%s")
+      out.verb = (verb and verb ~= "") and verb or rest
+      if detail then
+        -- The timer leads the detail group; the token counters follow it.
+        local head = detail:match("^([^·]*)"):gsub("^%s*(.-)%s*$", "%1")
+        if head:match("^%d+[hms]") then
+          out.elapsed = head
+        end
+        local down = detail:match("↓%s*([%d%.]+[kKmMgG]?)")
+        local up = detail:match("↑%s*([%d%.]+[kKmMgG]?)")
+        out.tokens = (down and "↓" .. down) or (up and "↑" .. up) or nil
       end
+      return out
     end
-  end
-  if not last then
-    return { "(no output yet)" }
   end
 
-  -- When anchored on the live status line, reach across up to `gaps` blank
-  -- separators to also grab the message paragraph above it. When idle
-  -- (anchored on a message), stop at the first blank so we show only the last
-  -- paragraph and never spill into the previous turn.
-  local max_gaps = is_status_line(lines[last]) and opts.gaps or 0
-  local first, gaps = last, 0
-  for i = last - 1, 1, -1 do
-    if is_rule(lines[i]) or is_box_top(lines[i]) or (last - i + 1) > opts.max_lines then
-      break
+  for i = boundary - 1, 1, -1 do
+    local marker = done_marker(lines[i])
+    if marker then
+      out.done = marker
+      return out
     end
-    if blank(i) then
-      gaps = gaps + 1
-      if gaps > max_gaps then
-        break
-      end
-    end
-    first = i
-  end
-
-  local out = {}
-  for i = first, last do
-    table.insert(out, (lines[i]:gsub("%s+$", "")))
-  end
-  while out[1] == "" do
-    table.remove(out, 1)
-  end
-  while out[#out] == "" do
-    table.remove(out)
-  end
-  if #out == 0 then
-    out = { "(no output yet)" }
   end
   return out
 end
