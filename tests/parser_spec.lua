@@ -192,6 +192,17 @@ describe("parser", function()
       assert.same({ "⎿ Dumping the live Claude terminal buffer via RPC" }, parser.status_lines())
     end)
 
+    it("does not stutter the marker when Claude bulleted the tool call", function()
+      buffer({
+        "● Running 3 shell commands · 3s…",
+        "  ⎿  $ git push -q",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "⎿ Running 3 shell commands · 3s…" }, parser.status_lines())
+    end)
+
     it("keeps the live status line out of the body", function()
       buffer({
         "  Reading parser.lua now.",
@@ -238,6 +249,20 @@ describe("parser", function()
         RULE,
       })
       assert.same({ "First paragraph.", "", "Second paragraph." }, parser.status_lines())
+    end)
+
+    it("shows what you asked while Claude has not answered yet", function()
+      buffer({
+        "  An answer from the turn before.",
+        "",
+        "❯ and what about the notification?",
+        "",
+        "✽ Infusing… (8m 24s · ↓ 24.8k tokens)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "❯ and what about the notification?" }, parser.status_lines())
     end)
 
     it("stops at the prompt you typed, so one turn never shows the last", function()
