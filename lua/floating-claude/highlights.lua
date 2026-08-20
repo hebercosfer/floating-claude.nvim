@@ -18,6 +18,7 @@ local M = {}
 local GROUPS = {
   FloatingClaudeStatus = "DiagnosticWarn", -- the spinner glyph and Claude's verb
   FloatingClaudeDetail = "Comment", -- the elapsed timer and the token counter
+  FloatingClaudeWaiting = "DiagnosticOk", -- the ❯ and "waiting for you"
   FloatingClaudeDone = "DiagnosticOk", -- the ✓ and a finished turn's marker
   FloatingClaudeTool = "Comment", -- the ⎿ in front of a running tool call
   FloatingClaudeBullet = "Title", -- Claude's ● in front of a message

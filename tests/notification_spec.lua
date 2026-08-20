@@ -77,7 +77,7 @@ describe("notification", function()
       assert.same({ " Reading parser.lua now." }, body())
     end)
 
-    it("captions the turn Claude just finished", function()
+    it("goes back to the plain label with nothing running", function()
       terminal({
         "  Done. Anything else?",
         "",
@@ -86,12 +86,6 @@ describe("notification", function()
         " > ",
         RULE,
       })
-      notification.show()
-      assert.equals(" ✓ Cooked for 1m 40s ", title())
-    end)
-
-    it("falls back to the plain label with no turn behind it", function()
-      terminal({ "  Hello.", RULE, " > ", RULE })
       notification.show()
       assert.equals(config.options.notification.title, title())
     end)
@@ -144,6 +138,61 @@ describe("notification", function()
     end)
   end)
 
+  describe("waiting", function()
+    it("says so under the message, with the finished turn as the detail", function()
+      terminal({
+        "  Done. Anything else?",
+        "",
+        "✻ Cooked for 1m 40s",
+        RULE,
+        " > ",
+        RULE,
+      })
+      notification.show()
+      assert.same({ " Done…", " ❯ Waiting for you · Cooked for 1m 40s" }, body())
+    end)
+
+    it("says so the moment Claude starts, with no turn behind it", function()
+      terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
+      notification.show()
+      assert.equals(" ❯ Waiting for you", body()[#body()])
+    end)
+
+    it("says nothing while Claude is working", function()
+      terminal({
+        "  Reading parser.lua now.",
+        "",
+        "✽ Infusing… (8m 24s · ↓ 24.8k tokens)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      notification.show()
+      assert.same({ " Reading parser.lua now." }, body())
+    end)
+
+    it("leaves the finished turn's marker alone when waiting is off", function()
+      terminal({
+        "  Done. Anything else?",
+        "",
+        "✻ Cooked for 1m 40s",
+        RULE,
+        " > ",
+        RULE,
+      })
+      config.setup({ notification = { waiting = false } })
+      notification.show()
+      assert.equals(" ✓ Cooked for 1m 40s", body()[#body()])
+    end)
+
+    it("says nothing at all when there is no turn and waiting is off", function()
+      terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
+      config.setup({ notification = { waiting = false } })
+      notification.show()
+      assert.same({ " Welcome to Claude Code!" }, body())
+    end)
+  end)
+
   describe("colour", function()
     it("splits the title between the verb and its detail", function()
       terminal({
@@ -160,7 +209,7 @@ describe("notification", function()
       assert.equals("FloatingClaudeDetail", chunks[3][2])
     end)
 
-    it("colours a finished turn as finished", function()
+    it("paints the waiting line whole, and the marker under waiting = false", function()
       terminal({
         "  Done. Anything else?",
         "",
@@ -170,13 +219,23 @@ describe("notification", function()
         RULE,
       })
       notification.show()
-      assert.equals("FloatingClaudeDone", title_chunks()[2][2])
+      local waiting = paint()[#paint()]
+      assert.equals("FloatingClaudeWaiting", waiting.hl_group)
+      assert.equals(0, waiting.col)
+      assert.equals(#body()[#body()], waiting.end_col)
+
+      notification.hide()
+      config.setup({ notification = { waiting = false } })
+      notification.show()
+      assert.equals("FloatingClaudeDone", paint()[#paint()].hl_group)
     end)
 
     it("marks a running tool call, and only the marker", function()
       terminal({
         "● Running 3 shell commands · 3s…",
         "  ⎿  $ git push -q",
+        "",
+        "✽ Infusing… (3s)",
         RULE,
         " > ",
         RULE,
@@ -190,6 +249,8 @@ describe("notification", function()
     it("marks Claude's bullet, and only the bullet", function()
       terminal({
         "● Reading parser.lua now.",
+        "",
+        "✽ Infusing… (3s)",
         RULE,
         " > ",
         RULE,
@@ -254,6 +315,8 @@ describe("notification", function()
     it("dims the marker a shortened sentence ends with", function()
       terminal({
         "● Answering the question directly first: it is not possible. I checked.",
+        "",
+        "✽ Infusing… (3s)",
         RULE,
         " > ",
         RULE,
@@ -281,6 +344,8 @@ describe("notification", function()
       terminal({
         "  Checked the queue against the repo as",
         "  it stands. Five things are still open.",
+        "",
+        "✽ Infusing… (3s)",
         RULE,
         " > ",
         RULE,
