@@ -226,6 +226,15 @@ local function lay_out(content, width, max_height)
     last.more = true
   end
 
+  -- A row ending in the marker reads as "there is more" however it got there --
+  -- cut here, or cut upstream by the sentence it came from. Not on a tool call
+  -- though: the ellipsis in "Running 3 shell commands · 3s…" is Claude's own,
+  -- and it means still running rather than cut short.
+  local last_row = rows[#rows]
+  if last_row and last_row.kind ~= "tool" and vim.endswith(last_row.text, MORE) then
+    last_row.more = true
+  end
+
   for _, row in ipairs(rows) do
     row.text = " " .. row.text
   end

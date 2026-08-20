@@ -251,6 +251,20 @@ describe("notification", function()
       assert.equals(" ✽ Infusing… 8m 24s ↓24.8k ", title())
     end)
 
+    it("dims the marker a shortened sentence ends with", function()
+      terminal({
+        "● Answering the question directly first: it is not possible. I checked.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      notification.show()
+      local painted = paint()
+      assert.equals("FloatingClaudeBullet", painted[1].hl_group)
+      assert.equals("FloatingClaudeMore", painted[#painted].hl_group)
+      assert.equals(#body()[#body()], painted[#painted].end_col)
+    end)
+
     it("defines its groups as overridable links", function()
       terminal({ "  Hello.", RULE, " > ", RULE })
       notification.show()
@@ -271,7 +285,7 @@ describe("notification", function()
         " > ",
         RULE,
       })
-      config.setup({ notification = { width = 40 } })
+      config.setup({ notification = { width = 40, body = "block" } })
       notification.show()
       assert.same({
         " Checked the queue against the repo as",
