@@ -157,9 +157,21 @@ local function is_tool_result(line)
   return line:gsub("^%s+", ""):sub(1, #TOOL_RESULT) == TOOL_RESULT
 end
 
+-- The bullet Claude puts in front of a message or a tool call.
+local MESSAGE_BULLETS = { "●", "•", "○", "◦" }
+
 -- Claude's own bullets and list markers, which start a line of their own rather
 -- than continuing the one above.
 local BULLETS = { "●", "•", "○", "◦", "-", "*", "+", ">", "|" }
+
+local function strip_bullet(text)
+  for _, bullet in ipairs(MESSAGE_BULLETS) do
+    if text:sub(1, #bullet) == bullet then
+      return (text:sub(#bullet + 1):gsub("^%s+", ""))
+    end
+  end
+  return text
+end
 
 local function starts_item(body)
   for _, b in ipairs(BULLETS) do
@@ -216,11 +228,21 @@ end
 
 -- One blank-separated block of the transcript, as the notification wants it:
 -- prose unwrapped, a tool call reduced to its header, and the furniture (the
--- live status line, the frozen marker, tips, the echo of what you typed) thrown
--- away. Returns nil for furniture, plus the kind and the lines consumed.
+-- live status line, the frozen marker, tips) thrown away. Returns nil for
+-- furniture, and otherwise the block, its kind and the lines it consumed --
+-- the kind being what tells the caller an echo or a tool call stands alone.
 local function render_block(lines, first, last, column, budget)
-  if is_status_line(lines[first]) or done_marker(lines[first]) or is_prompt_echo(lines[first]) then
+  if is_status_line(lines[first]) or done_marker(lines[first]) then
     return nil
+  end
+
+  -- What you asked is worth showing while Claude has not answered yet -- it is
+  -- what Claude is working on -- but never above an answer, where it is just
+  -- the seam between two turns.
+  if is_prompt_echo(lines[first]) then
+    return unwrap(lines, first, math.min(last, first + budget - 1), column),
+      "echo",
+      last - first + 1
   end
 
   local result
@@ -239,7 +261,9 @@ local function render_block(lines, first, last, column, budget)
     if is_tip(header) or header == "" then
       return nil
     end
-    return { TOOL_RESULT .. " " .. header }, "tool", last - first + 1
+    -- One marker is enough: Claude bullets the header of a tool call it is
+    -- running, and "⎿ ● Running 3 shell commands" reads as a stutter.
+    return { TOOL_RESULT .. " " .. strip_bullet(header) }, "tool", last - first + 1
   end
 
   if is_tip(clean(lines[first])) then
@@ -298,6 +322,12 @@ function M.diff_visible()
   return false
 end
 
+-- How far above the input box either scan will look. A terminal running a TUI
+-- redraws in place, so the buffer holds about a screenful and this never bites;
+-- it is here so a buffer that did accumulate scrollback cannot turn the
+-- watcher's 300ms poll into a walk over thousands of lines.
+local SEARCH_LIMIT = 200
+
 -- Row of the input box's TOP edge; everything above it is the conversation.
 -- The prompt is framed by two full-width rules (────) with the input between,
 -- or (older UI) a ╭rounded╮ box. Returns #lines+1 when no box is rendered yet.
@@ -327,11 +357,12 @@ end
 
 -- What the notification shows: the newest block of the transcript worth
 -- reading, cleaned up. "Newest" skips the furniture -- the live status line and
--- the frozen end-of-turn marker both belong in the title now, and the echo of
--- your own prompt is not news -- so what lands here is either what Claude last
--- said or the tool it is running. Prose is unwrapped from the float's width so
--- the notification can wrap it at its own; `gaps` blank separators may be
--- crossed to keep the paragraph above it in view.
+-- the frozen end-of-turn marker both belong in the title now -- so what lands
+-- here is what Claude last said, the tool it is running, or, before it has
+-- answered at all, the prompt you typed. Prose is unwrapped from the float's
+-- width so the notification can wrap it at its own; `gaps` blank separators may
+-- be crossed to keep the paragraph above it in view, and the echo of your own
+-- prompt is the edge no walk crosses.
 function M.status_lines()
   if not state.buf_valid() then
     return { "(Claude Code is not running)" }
@@ -347,8 +378,9 @@ function M.status_lines()
   local column = wrap_column(lines)
 
   local out, gaps, budget = {}, 0, opts.max_lines
+  local floor = math.max(1, boundary - SEARCH_LIMIT)
   local i = boundary - 1
-  while i >= 1 and budget > 0 do
+  while i >= floor and budget > 0 do
     if is_rule(lines[i]) or is_box_top(lines[i]) then
       break
     elseif blank(i) then
@@ -391,7 +423,8 @@ function M.status_lines()
           table.insert(out, 1, block[k])
         end
         budget = budget - consumed
-        if kind == "tool" then
+        -- Only prose keeps reaching upwards; anything else stands on its own.
+        if kind ~= "prose" then
           break
         end
       end
@@ -451,7 +484,7 @@ function M.status()
     end
   end
 
-  for i = boundary - 1, 1, -1 do
+  for i = boundary - 1, math.max(1, boundary - SEARCH_LIMIT), -1 do
     local marker = done_marker(lines[i])
     if marker then
       out.done = marker
@@ -463,21 +496,12 @@ end
 
 -- Claude is actively processing when its live status/spinner line is present
 -- just above the input box. Absence => idle / waiting for the user's input.
+--
+-- Deliberately the same scan the notification titles itself from: this is the
+-- predicate the auto-restore hangs off, and a second copy of it is a second
+-- thing to keep in step with Claude's UI.
 function M.is_working()
-  if not state.buf_valid() then
-    return false
-  end
-  local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
-  local boundary = input_boundary(lines)
-  for i = boundary - 1, math.max(1, boundary - 6), -1 do
-    if is_rule(lines[i]) or is_box_top(lines[i]) then
-      break
-    end
-    if is_status_line(lines[i]) then
-      return true
-    end
-  end
-  return false
+  return M.status().working
 end
 
 return M

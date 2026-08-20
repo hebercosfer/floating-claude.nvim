@@ -22,10 +22,15 @@ M.defaults = {
     refresh_ms = 250,
     -- Hard cap on the number of terminal lines tailed.
     max_lines = 12,
-    -- Blank-line separators the tail may cross before it stops, so the live
-    -- status line can pull in the message paragraph that precedes it.
+    -- Blank-line separators the tail may cross before it stops, so the newest
+    -- paragraph can pull in the one that precedes it.
     gaps = 1,
     border = "rounded",
+    -- Put Claude's state in the title -- the status verb, how long it has been
+    -- at it, the tokens it has pulled down -- and leave the body for what
+    -- Claude is saying. With false the state goes back to a line under the
+    -- message and the title stays the plain label below.
+    status_in_title = true,
     title = " Claude ",
     title_pos = "center",
     zindex = 60,
