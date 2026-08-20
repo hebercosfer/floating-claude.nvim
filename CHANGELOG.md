@@ -38,6 +38,14 @@ new Claude UI can change what the auto-minimize does without changing the API.
   24s ↓24.8k`), or the frozen marker once the turn ends (`✓ Cooked for 1m
   40s`); `notification.status_in_title = false` puts that back under the
   message, where it used to live.
+- The body is the opening sentence of the newest thing on screen, not the whole
+  paragraph — the corner is a few lines tall, and the first sentence is what
+  tells you which answer you are looking at. `notification.body = "block"`
+  restores the paragraph (and the one above it, as `gaps` allows); `max_lines`
+  and `gaps` shape that mode only. Where a sentence ends is the interesting
+  part: prose is full of full stops that end nothing — `parser.lua`, `0.10`,
+  `e.g.` — so a stop only counts when whitespace and then a capital, a quote or
+  a backtick follow it.
 - The body reads as prose rather than as terminal wreckage. Claude hard-wraps
   its output at the float's width, so tailing those lines into a 64-column
   notification re-wrapped fragments that were already broken — the ragged,

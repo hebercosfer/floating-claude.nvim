@@ -134,7 +134,12 @@ describe("parser", function()
     end)
   end)
 
-  describe("status_lines", function()
+  describe("status_lines, whole block", function()
+    -- `body = "block"` throughout: the default is one sentence, covered below.
+    before_each(function()
+      config.setup({ notification = { body = "block" } })
+    end)
+
     it("says so when Claude is not running", function()
       state.buf = -1
       assert.same({ "(Claude Code is not running)" }, parser.status_lines())
@@ -280,7 +285,7 @@ describe("parser", function()
     end)
 
     it("honours the max_lines cap", function()
-      config.setup({ notification = { max_lines = 3 } })
+      config.setup({ notification = { body = "block", max_lines = 3 } })
       buffer({
         "one",
         "two",
@@ -297,6 +302,101 @@ describe("parser", function()
     it("reports an empty terminal", function()
       buffer({ "" })
       assert.same({ "(no output yet)" }, parser.status_lines())
+    end)
+  end)
+
+  describe("status_lines, one sentence", function()
+    it("stops at the end of the first sentence", function()
+      buffer({
+        "● Answering the question directly first: copying Claude's actual",
+        "  colours is not possible. I checked against your live terminal buffer.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({
+        "● Answering the question directly first: copying Claude's actual colours is not possible…",
+      }, parser.status_lines())
+    end)
+
+    it("keeps a line that is one sentence whole, and unmarked", function()
+      buffer({ "● Reading parser.lua now.", RULE, " > ", RULE })
+      assert.same({ "● Reading parser.lua now." }, parser.status_lines())
+    end)
+
+    it("keeps a line with no terminator at all", function()
+      buffer({ "  Ran 13 shell commands", RULE, " > ", RULE })
+      assert.same({ "Ran 13 shell commands" }, parser.status_lines())
+    end)
+
+    it("does not end a sentence inside a version or a path", function()
+      buffer({
+        "  Tags are only v0.1.0 and v0.2.0, and parser.lua is untouched.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({
+        "Tags are only v0.1.0 and v0.2.0, and parser.lua is untouched.",
+      }, parser.status_lines())
+    end)
+
+    it("does not end a sentence on an abbreviation", function()
+      buffer({ "  See e.g. The Manual for the rest.", RULE, " > ", RULE })
+      assert.same({ "See e.g. The Manual for the rest." }, parser.status_lines())
+    end)
+
+    it("ends a sentence before a code span, which Claude opens with", function()
+      buffer({
+        "  The fix is in notification.lua. `parser.lua` is untouched.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "The fix is in notification.lua…" }, parser.status_lines())
+    end)
+
+    it("keeps a question mark and marks what follows it", function()
+      buffer({ "● Done. Anything else?", RULE, " > ", RULE })
+      assert.same({ "● Done…" }, parser.status_lines())
+
+      buffer({ "● Anything else? I can keep going.", RULE, " > ", RULE })
+      assert.same({ "● Anything else?…" }, parser.status_lines())
+    end)
+
+    it("marks a block whose first line is a whole sentence but not the whole block", function()
+      buffer({
+        "● First line, whole sentence.",
+        "  - and a list item under it",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "● First line, whole sentence…" }, parser.status_lines())
+    end)
+
+    it("leaves a collapsed tool call alone", function()
+      buffer({
+        "● Running 3 shell commands · 3s…",
+        "  ⎿  $ git push -q",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "⎿ Running 3 shell commands · 3s…" }, parser.status_lines())
+    end)
+
+    it("shortens the echo of your prompt the same way", function()
+      buffer({
+        "❯ start on the notification status work. There are some issues we",
+        "  may need to address.",
+        "",
+        "✽ Infusing… (3s)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "❯ start on the notification status work…" }, parser.status_lines())
     end)
   end)
 
