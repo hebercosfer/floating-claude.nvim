@@ -18,8 +18,15 @@ M.defaults = {
   notification = {
     width = 64,
     max_height = 12,
-    -- How often the notification re-reads the terminal buffer.
-    refresh_ms = 250,
+    -- How often the notification re-reads the terminal buffer. Claude cycles
+    -- its spinner glyph every 120ms or so and the title passes that glyph
+    -- through, so sampling slower than that makes a live turn look stuck. One
+    -- refresh costs about 0.2ms.
+    refresh_ms = 120,
+    -- How long each half of a marker's pulse lasts. A waiting notification
+    -- blinks its ❯ at this period and a running tool call its ⎿ at half of it,
+    -- so the two rhythms stay tellable apart. Set to false to hold both still.
+    pulse_ms = 700,
     -- What the body shows: "sentence" for the opening sentence of the newest
     -- thing on screen, "block" for the whole paragraph. `max_lines` and `gaps`
     -- shape the block; they do nothing to a sentence.
