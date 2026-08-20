@@ -35,9 +35,16 @@ new Claude UI can change what the auto-minimize does without changing the API.
 - The corner notification now says what Claude is doing in its title and keeps
   the body for what Claude is saying. The title carries the status verb, how
   long the turn has been running and the tokens pulled down (`✽ Infusing… 8m
-  24s ↓24.8k`), or the frozen marker once the turn ends (`✓ Cooked for 1m
-  40s`); `notification.status_in_title = false` puts that back under the
-  message, where it used to live.
+  24s ↓24.8k`), and nothing else: with nothing running there is no activity to
+  report, so it goes back to the plain label.
+- The notification says when Claude is waiting on you, on a line under the
+  message where the TUI puts its own prompt: `❯ Waiting for you · Cooked for 1m
+  40s`, with the finished turn's marker as the detail, or `❯ Waiting for you`
+  alone when Claude has only just started and has no turn behind it. Idle is
+  idle however Claude got there, a diff you have not resolved included.
+  `notification.waiting = false` shows the finished turn's marker on its own
+  and nothing when there is none; `notification.status_in_title = false` moves
+  the working status down there too.
 - The body is the opening sentence of the newest thing on screen, not the whole
   paragraph — the corner is a few lines tall, and the first sentence is what
   tells you which answer you are looking at. `notification.body = "block"`

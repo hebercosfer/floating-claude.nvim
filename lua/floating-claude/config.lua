@@ -30,6 +30,11 @@ M.defaults = {
     -- paragraph can pull in the one that precedes it.
     gaps = 1,
     border = "rounded",
+    -- What the notification says under the message while Claude is waiting on
+    -- you -- freshly started, done with a turn, or sitting on a diff you have
+    -- not resolved. The finished turn's marker follows it as detail. Set to
+    -- false to show that marker on its own, and nothing when there is none.
+    waiting = "Waiting for you",
     -- Put Claude's state in the title -- the status verb, how long it has been
     -- at it, the tokens it has pulled down -- and leave the body for what
     -- Claude is saying. With false the state goes back to a line under the

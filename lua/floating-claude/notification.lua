@@ -103,26 +103,26 @@ local function detail_of(status)
   return parts
 end
 
--- The title carries Claude's state, which leaves the body free for what Claude
--- is actually saying: `✽ Infusing… 8m 24s ↓24.8k` while it works,
--- `✓ Cooked for 1m 40s` for the turn it just finished, the plain label when it
--- is waiting on you. The timer and the token counter are the first things
--- dropped when the title will not fit -- the verb is what you read at a glance.
+-- Claude's own prompt glyph. The title borrows it for the same reason the input
+-- box uses it: it is the mark that means "your turn". Decoration, unlike the
+-- glyphs in parser.lua -- if Claude ever changes it, the title looks slightly
+-- different and nothing else moves.
+local WAITING_GLYPH = "❯"
+
+-- The title carries what Claude is DOING -- `✽ Infusing… 8m 24s ↓24.8k` -- and
+-- only that. With nothing running there is no activity to report, so it goes
+-- back to the plain label and the waiting line goes under the message instead,
+-- where the TUI puts its own prompt. The timer and the token counter are the
+-- first things dropped when the title will not fit; the verb is what you read
+-- at a glance.
 local function title_for(status, width)
   local opts = config.options.notification
-  if not opts.status_in_title then
+  if not opts.status_in_title or not status.working then
     return { { opts.title } }
   end
 
-  local head, group, tail
-  if status.working then
-    head = (status.glyph or "✻") .. " " .. (status.verb or "Working")
-    group, tail = "FloatingClaudeStatus", detail_of(status)
-  elseif status.done then
-    head, group, tail = "✓ " .. status.done, "FloatingClaudeDone", {}
-  else
-    return { { opts.title } }
-  end
+  local head = (status.glyph or "✻") .. " " .. (status.verb or "Working")
+  local group, tail = "FloatingClaudeStatus", detail_of(status)
 
   local room = width - 2
   while #tail > 0 do
@@ -140,15 +140,22 @@ local function title_for(status, width)
   return { { " " }, { fit(head, room - 2), group }, { " " } }
 end
 
--- Claude's own status line, rebuilt for the body when the title is not carrying
--- it (status_in_title = false).
+-- The line under the message: Claude's own status line while it works (when the
+-- title is not carrying it), and `❯ Waiting for you · Cooked for 1m 40s` when
+-- it is not working at all. Idle is idle however Claude got there -- a turn it
+-- finished, a diff it is waiting on you to resolve, or a session that has only
+-- just started -- and that last one has no marker to add.
 local function status_line(status)
+  local opts = config.options.notification
   if status.working then
     local detail = table.concat(detail_of(status), " · ")
     return (status.glyph or "✻")
       .. " "
       .. (status.verb or "Working")
       .. (detail ~= "" and (" (" .. detail .. ")") or "")
+  end
+  if opts.waiting then
+    return WAITING_GLYPH .. " " .. opts.waiting .. (status.done and (" · " .. status.done) or "")
   end
   return status.done and ("✓ " .. status.done) or nil
 end
@@ -194,15 +201,17 @@ end
 -- carries what paint() needs -- the kind of line it came from, and how many
 -- bytes of leading marker it starts with, which only the first row of a wrapped
 -- line has.
-local function lay_out(content, width, max_height)
+local function lay_out(entries, width, max_height)
   local rows = {}
-  for _, line in ipairs(content) do
-    if line == "" then
+  for _, entry in ipairs(entries) do
+    if entry.text == "" then
       table.insert(rows, { text = "", kind = "prose", marker = 0 })
     else
-      local kind = parser.line_kind(line)
-      local glyph = kind ~= "prose" and line:match("^%S+") or nil
-      for i, text in ipairs(wrap(line, width)) do
+      -- A line we wrote ourselves says what it is; one scraped off the
+      -- transcript is classified by the marker leading it.
+      local kind = entry.kind or parser.line_kind(entry.text)
+      local glyph = (not entry.kind and kind ~= "prose") and entry.text:match("^%S+") or nil
+      for i, text in ipairs(wrap(entry.text, width)) do
         table.insert(rows, {
           text = text,
           kind = kind,
@@ -227,11 +236,12 @@ local function lay_out(content, width, max_height)
   end
 
   -- A row ending in the marker reads as "there is more" however it got there --
-  -- cut here, or cut upstream by the sentence it came from. Not on a tool call
-  -- though: the ellipsis in "Running 3 shell commands · 3s…" is Claude's own,
-  -- and it means still running rather than cut short.
+  -- cut here, or cut upstream by the sentence it came from. Only on what Claude
+  -- said, though: the ellipsis in "Running 3 shell commands · 3s…" is Claude's
+  -- own and means still running, and the rows we write are painted whole.
   local last_row = rows[#rows]
-  if last_row and last_row.kind ~= "tool" and vim.endswith(last_row.text, MORE) then
+  local said = last_row and (last_row.kind == "prose" or last_row.kind == "bullet")
+  if said and vim.endswith(last_row.text, MORE) then
     last_row.more = true
   end
 
@@ -243,13 +253,22 @@ end
 
 -- Colour the pieces Claude colours: its marker glyphs, and the echo of your own
 -- prompt as a whole, since that one is not Claude talking at all.
+-- Rows painted end to end rather than on their marker: what you typed, and the
+-- status line we wrote ourselves.
+local WHOLE_ROW = {
+  echo = "FloatingClaudePrompt",
+  status = "FloatingClaudeStatus",
+  waiting = "FloatingClaudeWaiting",
+  done = "FloatingClaudeDone",
+}
+
 local function paint(buf, rows)
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for i, row in ipairs(rows) do
-    if row.kind == "echo" and #row.text > 0 then
+    if WHOLE_ROW[row.kind] and #row.text > 0 then
       vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 0, {
         end_col = #row.text,
-        hl_group = "FloatingClaudePrompt",
+        hl_group = WHOLE_ROW[row.kind],
       })
     elseif row.marker > 0 then
       vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 1, {
@@ -271,17 +290,29 @@ local function render()
   local opts = config.options.notification
   highlights.ensure()
   local status = parser.status()
-  local content = parser.status_lines()
-  if not opts.status_in_title then
+  local entries = {}
+  for _, line in ipairs(parser.status_lines()) do
+    table.insert(entries, { text = line })
+  end
+
+  -- Under the message goes whatever the title is not carrying: everything when
+  -- status_in_title is off, and the waiting line whenever Claude is idle.
+  if not (opts.status_in_title and status.working) then
     local line = status_line(status)
     if line then
-      table.insert(content, line)
+      local kind = "done"
+      if status.working then
+        kind = "status"
+      elseif opts.waiting then
+        kind = "waiting"
+      end
+      table.insert(entries, { text = line, kind = kind })
     end
   end
 
   -- A column of padding each side keeps the text off the border.
   local width = math.min(opts.width, vim.o.columns - 4)
-  local rows = lay_out(content, math.max(1, width - 2), opts.max_height)
+  local rows = lay_out(entries, math.max(1, width - 2), opts.max_height)
 
   if not state.mini_buf_valid() then
     state.mini_buf = vim.api.nvim_create_buf(false, true)

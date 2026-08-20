@@ -95,6 +95,7 @@ require("floating-claude").setup({
     gaps = 1,           -- blank separators the tail may cross, in "block" mode
     border = "rounded",
     status_in_title = true,  -- Claude's state in the title, not the body
+    waiting = "Waiting for you",  -- said under the message while Claude is idle
     title = " Claude ",
     title_pos = "center",
     zindex = 60,
@@ -127,15 +128,16 @@ scraped text arrives plain and there is nothing to copy. These groups are all
 `default` links, so a colourscheme that defines them wins, and your own
 `:highlight` wins over both.
 
-| Group                  | Links to         | Paints                                  |
-| ---------------------- | ---------------- | --------------------------------------- |
-| `FloatingClaudeStatus` | `DiagnosticWarn` | the spinner glyph and Claude's verb     |
-| `FloatingClaudeDetail` | `Comment`        | the elapsed timer and the token count   |
-| `FloatingClaudeDone`   | `DiagnosticOk`   | the `✓` and a finished turn's marker    |
-| `FloatingClaudeTool`   | `Comment`        | the `⎿` in front of a running tool call |
-| `FloatingClaudeBullet` | `Title`          | Claude's `●` in front of a message      |
-| `FloatingClaudePrompt` | `Comment`        | the echo of what you typed              |
-| `FloatingClaudeMore`   | `Comment`        | the `…` marking what did not fit        |
+| Group                   | Links to         | Paints                                  |
+| ----------------------- | ---------------- | --------------------------------------- |
+| `FloatingClaudeStatus`  | `DiagnosticWarn` | the spinner glyph and Claude's verb     |
+| `FloatingClaudeDetail`  | `Comment`        | the elapsed timer and the token count   |
+| `FloatingClaudeWaiting` | `DiagnosticOk`   | the `❯` and "waiting for you"           |
+| `FloatingClaudeDone`    | `DiagnosticOk`   | the `✓` and a finished turn's marker    |
+| `FloatingClaudeTool`    | `Comment`        | the `⎿` in front of a running tool call |
+| `FloatingClaudeBullet`  | `Title`          | Claude's `●` in front of a message      |
+| `FloatingClaudePrompt`  | `Comment`        | the echo of what you typed              |
+| `FloatingClaudeMore`    | `Comment`        | the `…` marking what did not fit        |
 
 ```lua
 -- e.g. the timer without your colourscheme's italic comments
@@ -182,9 +184,15 @@ real busy→idle edge, a manual minimize while Claude is already idle is never
 undone by the watcher.
 
 The same scraping feeds the notification, refreshing every `refresh_ms`, and it
-keeps the two apart. Claude's state goes in the title — `✽ Infusing… 8m 24s
-↓24.8k` while it works, `✓ Cooked for 1m 40s` for the turn it just finished —
-which leaves the body for what Claude is actually saying.
+keeps the two apart. The title carries what Claude is *doing* — `✽ Infusing… 8m
+24s ↓24.8k` — and only that, which leaves the body for what Claude is saying.
+With nothing running there is no activity to report, so the title goes back to
+the plain label and a line under the message says `❯ Waiting for you · Cooked
+for 1m 40s`, where the TUI puts its own prompt. Idle is idle however Claude got
+there: a turn it finished, a diff it is waiting on you to resolve, or a session
+that has only just started — that last one has no marker to add. Set `waiting =
+false` for the finished turn's marker on its own (`✓ Cooked for 1m 40s`), and
+nothing at all when there is no turn.
 
 The body is the **opening sentence** of the newest thing on screen (`body =
 "sentence"`), because the corner is a few lines tall and the first sentence is
