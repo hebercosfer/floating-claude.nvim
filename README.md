@@ -117,6 +117,30 @@ require("floating-claude").setup({
 })
 ```
 
+### Highlights
+
+The notification colours what it parsed. Claude's TUI colours the same pieces,
+but none of that survives the trip: Neovim keeps a terminal buffer's cell
+attributes inside libvterm's screen state rather than in the buffer, so the
+scraped text arrives plain and there is nothing to copy. These groups are all
+`default` links, so a colourscheme that defines them wins, and your own
+`:highlight` wins over both.
+
+| Group                  | Links to         | Paints                                  |
+| ---------------------- | ---------------- | --------------------------------------- |
+| `FloatingClaudeStatus` | `DiagnosticWarn` | the spinner glyph and Claude's verb     |
+| `FloatingClaudeDetail` | `Comment`        | the elapsed timer and the token count   |
+| `FloatingClaudeDone`   | `DiagnosticOk`   | the `✓` and a finished turn's marker    |
+| `FloatingClaudeTool`   | `Comment`        | the `⎿` in front of a running tool call |
+| `FloatingClaudeBullet` | `Title`          | Claude's `●` in front of a message      |
+| `FloatingClaudePrompt` | `Comment`        | the echo of what you typed              |
+| `FloatingClaudeMore`   | `Comment`        | the `…` marking what did not fit        |
+
+```lua
+-- e.g. the timer without your colourscheme's italic comments
+vim.api.nvim_set_hl(0, "FloatingClaudeDetail", { link = "LineNr" })
+```
+
 ## Commands and API
 
 | Command                   | Lua                                     | Does                                     |

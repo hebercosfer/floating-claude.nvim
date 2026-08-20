@@ -438,6 +438,22 @@ function M.status_lines()
   return out
 end
 
+--- Which marker leads a line from status_lines(), so the notification can
+--- colour it. The glyphs stay here, next to the scraping that produced them.
+--- @return "tool"|"echo"|"bullet"|"prose"
+function M.line_kind(line)
+  if is_tool_result(line) then
+    return "tool"
+  end
+  if is_prompt_echo(line) then
+    return "echo"
+  end
+  if strip_bullet(line) ~= line then
+    return "bullet"
+  end
+  return "prose"
+end
+
 -- Everything the notification title wants to say, read off the one live line:
 --
 --   ✽ Infusing… (8m 24s · ↓ 24.8k tokens)
