@@ -35,6 +35,15 @@ new Claude UI can change what the auto-minimize does without changing the API.
   so Vim's window commands behave the same way, and both are off with one
   option each. `restore_on_enter` also makes the notification focusable, which
   is what lets a click reach it.
+- Colour in the corner notification, over seven `FloatingClaude*` highlight
+  groups — the status verb, the elapsed timer and token count, the finished
+  turn's marker, the `⎿`/`●` markers, the echo of your own prompt and the `…`
+  that marks what did not fit. Claude's TUI colours the same pieces, but none
+  of it survives the trip: Neovim keeps a terminal buffer's cell attributes in
+  libvterm's screen state rather than in the buffer, so the scraped text
+  arrives plain and there is nothing to copy. Every group is a `default` link,
+  so a colourscheme wins over the defaults and your `:highlight` wins over
+  both; the table is in the README.
 
 ### Changed
 

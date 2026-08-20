@@ -2,12 +2,20 @@
 -- latest output while the big float is hidden.
 
 local config = require("floating-claude.config")
+local highlights = require("floating-claude.highlights")
 local parser = require("floating-claude.parser")
 local state = require("floating-claude.state")
 
 local uv = vim.uv or vim.loop
 
 local M = {}
+
+-- Where the notification's own highlights live, so a redraw can clear exactly
+-- what the last one painted.
+local ns = vim.api.nvim_create_namespace("floating-claude.notification")
+
+-- What marks a row whose content was cut short.
+local MORE = "…"
 
 local function stop_timer()
   if state.mini_timer then
@@ -102,28 +110,33 @@ end
 local function title_for(status, width)
   local opts = config.options.notification
   if not opts.status_in_title then
-    return opts.title
+    return { { opts.title } }
   end
 
-  local head, tail
+  local head, group, tail
   if status.working then
     head = (status.glyph or "✻") .. " " .. (status.verb or "Working")
-    tail = detail_of(status)
+    group, tail = "FloatingClaudeStatus", detail_of(status)
   elseif status.done then
-    head, tail = "✓ " .. status.done, {}
+    head, group, tail = "✓ " .. status.done, "FloatingClaudeDone", {}
   else
-    return opts.title
+    return { { opts.title } }
   end
 
   local room = width - 2
   while #tail > 0 do
-    local text = head .. " " .. table.concat(tail, " ")
-    if vim.fn.strdisplaywidth(text) + 2 <= room then
-      return " " .. text .. " "
+    local detail = table.concat(tail, " ")
+    if vim.fn.strdisplaywidth(head .. " " .. detail) + 2 <= room then
+      return {
+        { " " },
+        { head, group },
+        { " " .. detail, "FloatingClaudeDetail" },
+        { " " },
+      }
     end
     table.remove(tail)
   end
-  return " " .. fit(head, room - 2) .. " "
+  return { { " " }, { fit(head, room - 2), group }, { " " } }
 end
 
 -- Claude's own status line, rebuilt for the body when the title is not carrying
@@ -176,15 +189,24 @@ local function wrap(text, width)
 end
 
 -- The block as rows on screen: wrapped, indented off the border, and cut to
--- `max_height` with the last row marked when there is more than fits.
+-- `max_height` with the last row marked when there is more than fits. Each row
+-- carries what paint() needs -- the kind of line it came from, and how many
+-- bytes of leading marker it starts with, which only the first row of a wrapped
+-- line has.
 local function lay_out(content, width, max_height)
   local rows = {}
   for _, line in ipairs(content) do
     if line == "" then
-      table.insert(rows, "")
+      table.insert(rows, { text = "", kind = "prose", marker = 0 })
     else
-      for _, row in ipairs(wrap(line, width)) do
-        table.insert(rows, row)
+      local kind = parser.line_kind(line)
+      local glyph = kind ~= "prose" and line:match("^%S+") or nil
+      for i, text in ipairs(wrap(line, width)) do
+        table.insert(rows, {
+          text = text,
+          kind = kind,
+          marker = (i == 1 and glyph) and #glyph or 0,
+        })
       end
     end
   end
@@ -195,22 +217,49 @@ local function lay_out(content, width, max_height)
   end
   if clipped and #rows > 0 then
     local last = rows[#rows]
-    if vim.fn.strdisplaywidth(last) + 2 <= width then
-      rows[#rows] = last .. " …"
+    if vim.fn.strdisplaywidth(last.text) + 2 <= width then
+      last.text = last.text .. " " .. MORE
     else
-      rows[#rows] = cut(last, width - 1) .. "…"
+      last.text = cut(last.text, width - 1) .. MORE
     end
+    last.more = true
   end
 
-  for i, row in ipairs(rows) do
-    rows[i] = " " .. row
+  for _, row in ipairs(rows) do
+    row.text = " " .. row.text
   end
   return rows
+end
+
+-- Colour the pieces Claude colours: its marker glyphs, and the echo of your own
+-- prompt as a whole, since that one is not Claude talking at all.
+local function paint(buf, rows)
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  for i, row in ipairs(rows) do
+    if row.kind == "echo" and #row.text > 0 then
+      vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 0, {
+        end_col = #row.text,
+        hl_group = "FloatingClaudePrompt",
+      })
+    elseif row.marker > 0 then
+      vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 1, {
+        end_col = 1 + row.marker,
+        hl_group = row.kind == "tool" and "FloatingClaudeTool" or "FloatingClaudeBullet",
+      })
+    end
+    if row.more then
+      vim.api.nvim_buf_set_extmark(buf, ns, i - 1, #row.text - #MORE, {
+        end_col = #row.text,
+        hl_group = "FloatingClaudeMore",
+      })
+    end
+  end
 end
 
 -- Render (creating or resizing) the corner notification.
 local function render()
   local opts = config.options.notification
+  highlights.ensure()
   local status = parser.status()
   local content = parser.status_lines()
   if not opts.status_in_title then
@@ -222,17 +271,26 @@ local function render()
 
   -- A column of padding each side keeps the text off the border.
   local width = math.min(opts.width, vim.o.columns - 4)
-  content = lay_out(content, math.max(1, width - 2), opts.max_height)
+  local rows = lay_out(content, math.max(1, width - 2), opts.max_height)
 
   if not state.mini_buf_valid() then
     state.mini_buf = vim.api.nvim_create_buf(false, true)
     attach_enter(state.mini_buf)
   end
   vim.bo[state.mini_buf].modifiable = true
-  vim.api.nvim_buf_set_lines(state.mini_buf, 0, -1, false, content)
+  vim.api.nvim_buf_set_lines(
+    state.mini_buf,
+    0,
+    -1,
+    false,
+    vim.tbl_map(function(row)
+      return row.text
+    end, rows)
+  )
   vim.bo[state.mini_buf].modifiable = false
+  paint(state.mini_buf, rows)
 
-  local height = math.max(1, #content)
+  local height = math.max(1, #rows)
 
   local col = math.max(1, vim.o.columns - width - 2)
   local row = math.max(1, vim.o.lines - height - 3)
