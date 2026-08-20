@@ -10,6 +10,10 @@ local M = {
   mini_buf = -1,
   mini_win = -1,
   mini_timer = nil,
+  -- Renders since the notification opened, which is what drives the pulse on
+  -- its marker glyphs. Counting renders rather than reading a clock keeps the
+  -- animation deterministic, and stops it dead while the notification is down.
+  pulse = 0,
   -- Background watcher that auto-minimizes on diffs and restores when idle.
   watch_timer = nil,
   diff_seen = false,
