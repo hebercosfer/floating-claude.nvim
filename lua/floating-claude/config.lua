@@ -20,6 +20,10 @@ M.defaults = {
     max_height = 12,
     -- How often the notification re-reads the terminal buffer.
     refresh_ms = 250,
+    -- What the body shows: "sentence" for the opening sentence of the newest
+    -- thing on screen, "block" for the whole paragraph. `max_lines` and `gaps`
+    -- shape the block; they do nothing to a sentence.
+    body = "sentence",
     -- Hard cap on the number of terminal lines tailed.
     max_lines = 12,
     -- Blank-line separators the tail may cross before it stops, so the newest

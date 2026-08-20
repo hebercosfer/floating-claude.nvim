@@ -411,6 +411,19 @@ function M.status_lines()
         break
       end
       if block then
+        -- One phrase of the newest thing on screen, and nothing else: the
+        -- opening sentence says what this is, and the corner is four lines
+        -- tall. `gaps` and `max_lines` only apply to the whole-block mode.
+        if opts.body == "sentence" then
+          local text, more = M.first_sentence(block[1])
+          if more or #block > 1 then
+            -- "possible." reads better as "possible…" than as "possible.…";
+            -- a question or an exclamation keeps its mark.
+            text = text:gsub("%.+$", "") .. "…"
+          end
+          return { text }
+        end
+
         -- Only prose stacks: a tool call stands alone, and once we have prose
         -- anything else above it belongs to an older part of the turn.
         if #out > 0 and kind ~= "prose" then
@@ -436,6 +449,69 @@ function M.status_lines()
     return { "(no output yet)" }
   end
   return out
+end
+
+-- Openers that start a sentence without being a capital letter. Claude opens
+-- sentences with a code span constantly, so the backtick matters.
+local SENTENCE_OPENERS = { '"', "'", "`", "(", "[", "“", "‘" }
+
+-- Abbreviations whose full stop ends nothing, and which the capital-letter test
+-- below cannot catch on its own ("i.e. The rest"). Deliberately short: "etc."
+-- is left out because it genuinely does end sentences.
+local ABBREVIATIONS = { "e.g.", "i.e.", "cf.", "vs.", "Dr.", "Mr.", "Mrs.", "Ms.", "St." }
+
+local function opens_sentence(rest)
+  if rest:sub(1, 1):match("%u") then
+    return true
+  end
+  for _, opener in ipairs(SENTENCE_OPENERS) do
+    if rest:sub(1, #opener) == opener then
+      return true
+    end
+  end
+  return false
+end
+
+local function is_abbreviation(text)
+  local word = text:match("(%S+)$")
+  if not word then
+    return false
+  end
+  for _, abbreviation in ipairs(ABBREVIATIONS) do
+    if word == abbreviation then
+      return true
+    end
+  end
+  return false
+end
+
+--- The first sentence of a line, and whether anything followed it.
+---
+--- Prose is full of full stops that end nothing -- `parser.lua`, `0.10`,
+--- `v0.2.0`, `e.g.` -- so a full stop only counts when what follows looks like
+--- the start of the next sentence: whitespace, then a capital or an opener. A
+--- stop with no whitespace after it is inside a word, a version or a path, and
+--- one at the end of the line ends the line, not a sentence within it.
+--- @return string, boolean
+function M.first_sentence(line)
+  local from = 1
+  while true do
+    local first, last = line:find("[%.!%?]+", from)
+    if not first then
+      return line, false
+    end
+    local rest = line:sub(last + 1)
+    local gap = rest:match("^%s+")
+    if gap then
+      local tail = rest:sub(#gap + 1)
+      -- Up to and including the stop: an abbreviation is only recognisable
+      -- with its own full stop attached ("e.g.", not "e.g").
+      if tail ~= "" and opens_sentence(tail) and not is_abbreviation(line:sub(1, last)) then
+        return line:sub(1, last), true
+      end
+    end
+    from = last + 1
+  end
 end
 
 --- Which marker leads a line from status_lines(), so the notification can

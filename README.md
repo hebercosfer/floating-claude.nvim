@@ -97,8 +97,9 @@ require("floating-claude").setup({
     width = 64,
     max_height = 12,
     refresh_ms = 250,   -- how often the notification re-reads the terminal
-    max_lines = 12,     -- hard cap on terminal lines tailed
-    gaps = 1,           -- blank separators the tail may cross
+    body = "sentence",  -- "sentence" (opening sentence) or "block" (paragraph)
+    max_lines = 12,     -- hard cap on terminal lines tailed, in "block" mode
+    gaps = 1,           -- blank separators the tail may cross, in "block" mode
     border = "rounded",
     status_in_title = true,  -- Claude's state in the title, not the body
     title = " Claude ",
@@ -190,15 +191,25 @@ undone by the watcher.
 The same scraping feeds the notification, refreshing every `refresh_ms`, and it
 keeps the two apart. Claude's state goes in the title — `✽ Infusing… 8m 24s
 ↓24.8k` while it works, `✓ Cooked for 1m 40s` for the turn it just finished —
-which leaves the body for what Claude is actually saying. Claude hard-wraps its
-prose at the float's width, so the body undoes that wrap before re-wrapping it
-at the notification's own; otherwise every paragraph arrives pre-broken at the
-wrong column and stacks up ragged. A tool call collapses to the one line naming
-what is running rather than spilling its output into the corner. The echo of
-your own prompt bounds the tail, so one turn never shows the last one, and it
-stands in as the body while Claude is working but has not said anything yet —
-what you asked is what Claude is doing. Set `status_in_title = false` to put the
-state back under the message instead.
+which leaves the body for what Claude is actually saying.
+
+The body is the **opening sentence** of the newest thing on screen (`body =
+"sentence"`), because the corner is a few lines tall and the first sentence is
+what says which of Claude's answers you are looking at. `body = "block"` shows
+the whole paragraph instead, and the paragraph above it as `gaps` allows.
+Finding where a sentence ends is the interesting part: prose is full of full
+stops that end nothing — `parser.lua`, `0.10`, `e.g.` — so a stop only counts
+when whitespace and then a capital (or a quote, or a backtick) follow it.
+
+Either way the text is re-flowed first. Claude hard-wraps its prose at the
+float's width, so the body undoes that wrap before re-wrapping it at the
+notification's own; otherwise every paragraph arrives pre-broken at the wrong
+column and stacks up ragged. A tool call collapses to the one line naming what
+is running rather than spilling its output into the corner. The echo of your own
+prompt bounds the tail, so one turn never shows the last one, and it stands in
+as the body while Claude is working but has not said anything yet — what you
+asked is what Claude is doing. Set `status_in_title = false` to put the state
+back under the message instead.
 
 Focus moves the float too, which is what makes the mouse work. Leaving the
 float minimizes it (`minimize_on_leave`) and entering the notification restores
