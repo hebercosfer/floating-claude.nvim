@@ -140,34 +140,118 @@ describe("parser", function()
       assert.same({ "(Claude Code is not running)" }, parser.status_lines())
     end)
 
-    it("pulls the message paragraph in with the status line", function()
+    it("unwraps prose the TUI hard-wrapped at the float's width", function()
       buffer({
-        "An older turn nobody asked for.",
-        "",
-        "Reading parser.lua now.",
-        "",
-        "✶ Baked for 17s (esc to interrupt)",
+        "  Checked the queue against the repo as",
+        "  it stands. Five things are still open.",
         RULE,
         " > ",
         RULE,
       })
-      local lines = parser.status_lines()
-      assert.equals("Reading parser.lua now.", lines[1])
-      assert.is_not_nil(lines[#lines]:find("17s", 1, true))
-      -- The blank separator between them is kept; the older turn is not.
-      assert.equals(3, #lines)
+      assert.same({
+        "Checked the queue against the repo as it stands. Five things are still open.",
+      }, parser.status_lines())
     end)
 
-    it("shows only the last paragraph when idle", function()
+    it("leaves lines that stopped well short of the wrap alone", function()
       buffer({
-        "An older turn.",
+        "  one",
+        "  two",
+        "  three",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "one", "two", "three" }, parser.status_lines())
+    end)
+
+    it("starts a new line at a list marker, however full the line above", function()
+      buffer({
+        "  Three things are still open, and here",
+        "  - the first one, which matters most",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({
+        "Three things are still open, and here",
+        "- the first one, which matters most",
+      }, parser.status_lines())
+    end)
+
+    it("collapses a tool call to what it is doing", function()
+      buffer({
+        "  Dumping the live Claude terminal buffer via RPC",
+        "  ⎿  $ cat > /tmp/dump.lua <<'LUA'",
+        "     local out = {}",
+        '     local parser = require("floating-claude.parser")…',
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "⎿ Dumping the live Claude terminal buffer via RPC" }, parser.status_lines())
+    end)
+
+    it("keeps the live status line out of the body", function()
+      buffer({
+        "  Reading parser.lua now.",
         "",
-        "Done. Anything else?",
+        "✽ Infusing… (8m 24s · ↓ 24.8k tokens)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "Reading parser.lua now." }, parser.status_lines())
+    end)
+
+    it("keeps the frozen end-of-turn marker out of the body", function()
+      buffer({
+        "  Done. Anything else?",
+        "",
+        "✻ Cooked for 1m 40s",
         RULE,
         " > ",
         RULE,
       })
       assert.same({ "Done. Anything else?" }, parser.status_lines())
+    end)
+
+    it("skips the tip footer", function()
+      buffer({
+        "  Done. Anything else?",
+        "",
+        "  ⎿ Tip: press esc to interrupt",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "Done. Anything else?" }, parser.status_lines())
+    end)
+
+    it("reaches the paragraph above the newest one", function()
+      buffer({
+        "  First paragraph.",
+        "",
+        "  Second paragraph.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "First paragraph.", "", "Second paragraph." }, parser.status_lines())
+    end)
+
+    it("stops at the prompt you typed, so one turn never shows the last", function()
+      buffer({
+        "  An answer from the turn before.",
+        "",
+        "❯ and what about the notification?",
+        "",
+        "  This turn's answer.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      assert.same({ "This turn's answer." }, parser.status_lines())
     end)
 
     it("honours the max_lines cap", function()
@@ -188,6 +272,73 @@ describe("parser", function()
     it("reports an empty terminal", function()
       buffer({ "" })
       assert.same({ "(no output yet)" }, parser.status_lines())
+    end)
+  end)
+
+  describe("status", function()
+    it("reads the verb, the timer and the tokens off the live line", function()
+      buffer({
+        "  Working on it.",
+        "",
+        "✽ Infusing… (8m 24s · ↓ 24.8k tokens)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      local status = parser.status()
+      assert.is_true(status.working)
+      assert.equals("✽", status.glyph)
+      assert.equals("Infusing…", status.verb)
+      assert.equals("8m 24s", status.elapsed)
+      assert.equals("↓24.8k", status.tokens)
+    end)
+
+    it("leaves the older shape's duration in the verb", function()
+      buffer({
+        "✶ Baked for 17s … (esc to interrupt)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      local status = parser.status()
+      assert.is_true(status.working)
+      assert.equals("Baked for 17s …", status.verb)
+      assert.is_nil(status.elapsed)
+      assert.is_nil(status.tokens)
+    end)
+
+    it("captions a finished turn with the frozen marker", function()
+      buffer({
+        "  Ran the suite; two specs still red · 44s",
+        "",
+        "✻ Cooked for 1m 40s",
+        "",
+        "❯ ",
+        RULE,
+        " > ",
+        RULE,
+      })
+      local status = parser.status()
+      assert.is_false(status.working)
+      assert.equals("Cooked for 1m 40s", status.done)
+    end)
+
+    it("says nothing with no turn behind it", function()
+      buffer({
+        "  Hello.",
+        RULE,
+        " > ",
+        RULE,
+      })
+      local status = parser.status()
+      assert.is_false(status.working)
+      assert.is_nil(status.done)
+      assert.is_nil(status.verb)
+    end)
+
+    it("is idle with no terminal buffer", function()
+      state.buf = -1
+      assert.is_false(parser.status().working)
     end)
   end)
 
