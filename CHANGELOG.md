@@ -52,6 +52,18 @@ new Claude UI can change what the auto-minimize does without changing the API.
   long the turn has been running and the tokens pulled down (`✽ Infusing… 8m
   24s ↓24.8k`), and nothing else: with nothing running there is no activity to
   report, so it goes back to the plain label.
+- The notification moves while Claude does. Claude cycles its spinner glyph
+  (`· ✢ * ✶ ✻ ✽` and back) about every 120ms and the title passes that glyph
+  through, so `notification.refresh_ms` now samples at the same rate — at the
+  old 250ms the glyph landed on aliased frames and a live turn looked stuck. On
+  top of that the markers pulse, at two rhythms: a running tool call flickers
+  its `⎿` between grey and the working amber every `pulse_ms / 2`, and a
+  waiting notification blinks its `❯` between green and dim every `pulse_ms`
+  (700ms by default), so the rhythm says which state you are in before you have
+  read a word. Only the glyph moves, and a `⎿` from a tool call that has
+  already finished holds still. `notification.pulse_ms = false` stops all of
+  it. A refresh costs about 0.2ms — roughly 0.2% of one core at the default
+  rate — and the pulse adds one extmark write to that.
 - The notification says when Claude is waiting on you, on a line under the
   message where the TUI puts its own prompt: `❯ Waiting for you · Cooked for 1m
   40s`, with the finished turn's marker as the detail, or `❯ Waiting for you`

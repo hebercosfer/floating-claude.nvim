@@ -55,6 +55,9 @@ end
 
 function M.hide()
   stop_timer()
+  -- Start the next one on the bright half: a pulse that opens mid-blink reads
+  -- as a glitch rather than as a rhythm.
+  state.pulse = 0
   if state.mini_win_valid() then
     vim.api.nvim_win_close(state.mini_win, true)
   end
@@ -210,11 +213,13 @@ local function lay_out(entries, width, max_height)
       -- transcript is classified by the marker leading it.
       local kind = entry.kind or parser.line_kind(entry.text)
       local glyph = (not entry.kind and kind ~= "prose") and entry.text:match("^%S+") or nil
+      local marker = entry.marker or (glyph and #glyph) or 0
       for i, text in ipairs(wrap(entry.text, width)) do
         table.insert(rows, {
           text = text,
           kind = kind,
-          marker = (i == 1 and glyph) and #glyph or 0,
+          -- Only the first row of a wrapped line carries the glyph.
+          marker = i == 1 and marker or 0,
         })
       end
     end
@@ -261,19 +266,60 @@ local WHOLE_ROW = {
   done = "FloatingClaudeDone",
 }
 
-local function paint(buf, rows)
+-- The group a marker wears when it is not pulsing.
+local MARKER = {
+  tool = "FloatingClaudeTool",
+  bullet = "FloatingClaudeBullet",
+}
+
+-- Markers that pulse, as { dim, bright } and how long each half lasts as a
+-- multiple of pulse_ms. Waiting blinks slowly between its own green and a dim
+-- tick; a running tool call flickers twice as fast, and between its own dim
+-- grey and the amber the title wears while Claude works -- so the two rhythms
+-- say which state you are in before you have read a word of either.
+local PULSE = {
+  waiting = { "FloatingClaudeTick", "FloatingClaudeWaiting", 1 },
+  tool = { "FloatingClaudeTool", "FloatingClaudeStatus", 0.5 },
+}
+
+--- Which half of the pulse this render falls in, or nil for a marker that
+--- holds still. Counting renders rather than reading a clock keeps this
+--- deterministic: the specs drive it by rendering.
+local function pulsing(kind, working)
+  local opts = config.options.notification
+  local pulse = PULSE[kind]
+  if not pulse or not opts.pulse_ms then
+    return nil
+  end
+  -- A ⎿ only means "running" while Claude is; idle, it is the last thing that
+  -- ran and pulsing it would claim work that is not happening.
+  if kind == "tool" and not working then
+    return nil
+  end
+  local ticks = math.max(1, math.floor((opts.pulse_ms * pulse[3]) / opts.refresh_ms + 0.5))
+  local bright = math.floor(state.pulse / ticks) % 2 == 0
+  return bright and pulse[2] or pulse[1]
+end
+
+local function paint(buf, rows, working)
   vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
   for i, row in ipairs(rows) do
-    if WHOLE_ROW[row.kind] and #row.text > 0 then
-      vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 0, {
-        end_col = #row.text,
-        hl_group = WHOLE_ROW[row.kind],
-      })
+    local function mark(col, end_col, group)
+      vim.api.nvim_buf_set_extmark(buf, ns, i - 1, col, { end_col = end_col, hl_group = group })
+    end
+
+    local whole, pulse = WHOLE_ROW[row.kind], pulsing(row.kind, working)
+    if whole and #row.text > 0 then
+      if pulse and row.marker > 0 then
+        -- Only the glyph moves; the words next to it would be unreadable if
+        -- they blinked too. The pad column goes with the glyph, invisibly.
+        mark(0, 1 + row.marker, pulse)
+        mark(1 + row.marker, #row.text, whole)
+      else
+        mark(0, #row.text, whole)
+      end
     elseif row.marker > 0 then
-      vim.api.nvim_buf_set_extmark(buf, ns, i - 1, 1, {
-        end_col = 1 + row.marker,
-        hl_group = row.kind == "tool" and "FloatingClaudeTool" or "FloatingClaudeBullet",
-      })
+      mark(1, 1 + row.marker, pulse or MARKER[row.kind])
     end
     if row.more then
       vim.api.nvim_buf_set_extmark(buf, ns, i - 1, #row.text - #MORE, {
@@ -305,7 +351,11 @@ local function render()
       elseif opts.waiting then
         kind = "waiting"
       end
-      table.insert(entries, { text = line, kind = kind })
+      table.insert(entries, {
+        text = line,
+        kind = kind,
+        marker = kind == "waiting" and #WAITING_GLYPH or nil,
+      })
     end
   end
 
@@ -328,7 +378,7 @@ local function render()
     end, rows)
   )
   vim.bo[state.mini_buf].modifiable = false
-  paint(state.mini_buf, rows)
+  paint(state.mini_buf, rows, status.working)
 
   local height = math.max(1, #rows)
 
@@ -365,6 +415,10 @@ local function render()
   -- Show the block from its start: lay_out() cut it to fit, and the opening
   -- sentence is the part worth reading.
   pcall(vim.api.nvim_win_set_cursor, state.mini_win, { 1, 0 })
+
+  -- Counted after the fact, so the first render of a notification is the one
+  -- that has not pulsed yet -- the bright half.
+  state.pulse = state.pulse + 1
 end
 
 function M.show()

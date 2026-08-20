@@ -209,7 +209,7 @@ describe("notification", function()
       assert.equals("FloatingClaudeDetail", chunks[3][2])
     end)
 
-    it("paints the waiting line whole, and the marker under waiting = false", function()
+    it("paints the waiting line, and the marker under waiting = false", function()
       terminal({
         "  Done. Anything else?",
         "",
@@ -219,10 +219,13 @@ describe("notification", function()
         RULE,
       })
       notification.show()
-      local waiting = paint()[#paint()]
-      assert.equals("FloatingClaudeWaiting", waiting.hl_group)
-      assert.equals(0, waiting.col)
-      assert.equals(#body()[#body()], waiting.end_col)
+      local painted = paint()
+      -- The glyph is its own mark so it can pulse without the words moving.
+      assert.equals("FloatingClaudeWaiting", painted[#painted - 1].hl_group)
+      assert.equals(0, painted[#painted - 1].col)
+      assert.equals(1 + #"❯", painted[#painted - 1].end_col)
+      assert.equals("FloatingClaudeWaiting", painted[#painted].hl_group)
+      assert.equals(#body()[#body()], painted[#painted].end_col)
 
       notification.hide()
       config.setup({ notification = { waiting = false } })
@@ -241,8 +244,9 @@ describe("notification", function()
         RULE,
       })
       notification.show()
+      -- Amber, not grey: Claude is working, so the marker is on its bright half.
       assert.same({
-        { row = 0, col = 1, end_col = 1 + #"⎿", hl_group = "FloatingClaudeTool" },
+        { row = 0, col = 1, end_col = 1 + #"⎿", hl_group = "FloatingClaudeStatus" },
       }, paint())
     end)
 
@@ -336,6 +340,84 @@ describe("notification", function()
         vim.api.nvim_get_hl(0, { name = "FloatingClaudeStatus" }).link
       )
       assert.equals("Comment", vim.api.nvim_get_hl(0, { name = "FloatingClaudeDetail" }).link)
+    end)
+  end)
+
+  describe("pulse", function()
+    -- One render per half-period, so a redraw is a blink.
+    local function every_render()
+      config.setup({ notification = { refresh_ms = 120, pulse_ms = 120 } })
+    end
+
+    local function glyph()
+      return paint()[1].hl_group
+    end
+
+    it("blinks the waiting glyph, and leaves the words beside it alone", function()
+      terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
+      every_render()
+      notification.show()
+      assert.equals("FloatingClaudeWaiting", glyph())
+      notification.show()
+      assert.equals("FloatingClaudeTick", glyph())
+      notification.show()
+      assert.equals("FloatingClaudeWaiting", glyph())
+      -- Whatever the glyph is doing, the rest of the line holds still.
+      assert.equals("FloatingClaudeWaiting", paint()[2].hl_group)
+    end)
+
+    it("flickers a running tool call between its own grey and the working amber", function()
+      terminal({
+        "● Running 3 shell commands · 3s…",
+        "  ⎿  $ git push -q",
+        "",
+        "✽ Infusing… (3s)",
+        RULE,
+        " > ",
+        RULE,
+      })
+      every_render()
+      notification.show()
+      assert.equals("FloatingClaudeStatus", glyph())
+      notification.show()
+      assert.equals("FloatingClaudeTool", glyph())
+    end)
+
+    it("holds a tool call still once Claude has stopped", function()
+      terminal({
+        "● Ran 3 shell commands · 3s…",
+        "  ⎿  $ git push -q",
+        RULE,
+        " > ",
+        RULE,
+      })
+      every_render()
+      notification.show()
+      assert.equals("FloatingClaudeTool", glyph())
+      notification.show()
+      assert.equals("FloatingClaudeTool", glyph())
+    end)
+
+    it("holds everything still with pulse_ms off", function()
+      terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
+      config.setup({ notification = { pulse_ms = false } })
+      notification.show()
+      local held = paint()
+      notification.show()
+      assert.same(held, paint())
+      assert.equals(1, #held)
+      assert.equals("FloatingClaudeWaiting", held[1].hl_group)
+    end)
+
+    it("starts on the bright half every time it opens", function()
+      terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
+      every_render()
+      notification.show()
+      notification.show()
+      assert.equals("FloatingClaudeTick", glyph())
+      notification.hide()
+      notification.show()
+      assert.equals("FloatingClaudeWaiting", glyph())
     end)
   end)
 
