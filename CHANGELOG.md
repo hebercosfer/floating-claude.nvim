@@ -5,9 +5,9 @@ All notable changes to this project are documented here.
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html)
 over its public surface: `setup()` options, the provider table, the commands and
-the Lua API. The claudecode.nvim / Claude Code versions a release targets are
-tracked separately in `compat.lua` — moving that pair is a minor bump, since a
-new Claude UI can change what the auto-minimize does without changing the API.
+the Lua API. What counts as which bump — including how the claudecode.nvim /
+Claude Code pair in `compat.lua` moves — is written out once, in the README's
+[Versioning](README.md#versioning) section.
 
 ## [Unreleased]
 
