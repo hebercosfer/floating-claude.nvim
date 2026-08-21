@@ -111,11 +111,14 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Pinned to the same commit the main suite uses. This workflow exists to
+      # report drift in claudecode.nvim and the CLI; a plenary that moved under
+      # it would report as drift in them.
       - name: Check out plenary.nvim
         uses: actions/checkout@v7
         with:
           repository: nvim-lua/plenary.nvim
-          ref: master
+          ref: 74b06c6c75e4eeb3108ec01852001636d85a932b
           path: .tests/plenary.nvim
 
       # main, not a pin. Finding out what the tip does to us is the entire point.
