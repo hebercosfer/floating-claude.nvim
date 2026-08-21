@@ -12,6 +12,13 @@ patches — is written out once, in the README's
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-08-21
+
+Everything `main` shipped as [0.3.0](https://github.com/hebercosfer/floating-claude.nvim/blob/main/CHANGELOG.md),
+minus what needs Neovim 0.11. A patch release carrying features and a retarget,
+because this line cannot emit anything else — see
+[Versioning](README.md#versioning).
+
 ### Added
 
 - Test suite on plenary.nvim covering the parser heuristics, the version
@@ -123,6 +130,12 @@ patches — is written out once, in the README's
   actually landed. The minimize now runs a tick later, once the switch has
   settled.
 
+### Compatibility
+
+- Neovim 0.10+, tested at 0.10.4 and nothing else
+- claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
+- Claude Code CLI 2.1.238; minimum 2.1.0
+
 ## [0.1.0] - 2026-07-31
 
 First release.
@@ -150,5 +163,6 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hebercosfer/floating-claude.nvim/releases/tag/v0.1.0
