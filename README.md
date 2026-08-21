@@ -26,6 +26,20 @@ Claude has settled and is waiting for you.
         float while you work                     minimized while you review
 ```
 
+## See it move
+
+`:FloatingClaudeDemo` runs a guided tour of the whole thing — the float, the
+corner it collapses into, an edit approval it gets out of the way for — pausing
+to ask you to click the parts that are about clicking.
+`:FloatingClaudeDemo auto` makes those moves itself, which is the one to record.
+
+The Claude in that float is a scripted stand-in: no CLI, no network, nothing
+typed. Everything around it is the real plugin reading a fake terminal, so the
+tour runs with neither claudecode.nvim nor the Claude Code CLI installed, and it
+comes out the same way twice. It borrows the plugin's defaults while it runs and
+hands your own settings back at the end; `:FloatingClaudeDemo stop` ends it
+early.
+
 ## Requirements
 
 - Neovim 0.11+
@@ -148,11 +162,13 @@ vim.api.nvim_set_hl(0, "FloatingClaudeDetail", { link = "LineNr" })
 
 ## Commands and API
 
-| Command                   | Lua                                     | Does                                     |
-| ------------------------- | --------------------------------------- | ---------------------------------------- |
-| `:FloatingClaudeMinimize` | `require("floating-claude").minimize()`  | Collapse the float into the notification |
-| `:FloatingClaudeRestore`  | `require("floating-claude").restore()`   | Bring the full float back                |
-| `:FloatingClaudeToggle`   | `require("floating-claude").toggle_mini()` | Flip between the two                   |
+| Command                        | Lua                                        | Does                                     |
+| ------------------------------ | ------------------------------------------ | ---------------------------------------- |
+| `:FloatingClaudeMinimize`      | `require("floating-claude").minimize()`     | Collapse the float into the notification |
+| `:FloatingClaudeRestore`       | `require("floating-claude").restore()`      | Bring the full float back                |
+| `:FloatingClaudeToggle`        | `require("floating-claude").toggle_mini()`  | Flip between the two                     |
+| `:FloatingClaudeDemo [auto]`   | `require("floating-claude").demo(opts)`     | Run the [guided tour](#see-it-move)      |
+| `:FloatingClaudeDemo stop`     | `require("floating-claude").demo_stop()`    | End the tour early                       |
 
 `require("floating-claude").is_running()` reports whether Claude Code is live.
 
@@ -376,6 +392,7 @@ does not fail the run.
 | `version.lua`       | This plugin's own version                               |
 | `tests/`            | plenary specs and their minimal init                    |
 | `health.lua`        | `:checkhealth floating-claude`                          |
+| `demo/`             | The guided tour: a scripted Claude, a stand-in diff      |
 
 ## License
 

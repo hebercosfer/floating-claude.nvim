@@ -45,4 +45,17 @@ function M.is_running()
   return require("floating-claude.state").buf_valid()
 end
 
+--- Run the guided tour: the float, the corner and the watcher, driven by a
+--- scripted stand-in for Claude. Needs neither claudecode.nvim nor the CLI.
+--- `opts.auto` makes the moves it would otherwise ask you for.
+---@param opts { auto: boolean|nil }|nil
+function M.demo(opts)
+  require("floating-claude.demo").start(opts)
+end
+
+--- End the tour early, putting back everything it borrowed.
+function M.demo_stop()
+  require("floating-claude.demo").stop()
+end
+
 return M
