@@ -11,6 +11,14 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-08-21
+
+The first release with behaviour in it since 0.1.0. [0.2.0](#020---2026-08-10)
+raised the Neovim floor to 0.11, split the 0.10 line off onto
+`support/nvim-0.10`, and added the test suite and CI standing behind all of it
+— packaging and infrastructure, with no new functionality and no fixes. This is
+the release that carries them.
+
 ### Added
 
 - Mouse-friendly focus handling. Leaving the float minimizes it
@@ -107,6 +115,12 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
   actually landed. The minimize now runs a tick later, once the switch has
   settled.
 
+### Compatibility
+
+- Neovim 0.11+
+- claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
+- Claude Code CLI 2.1.238; minimum 2.1.0
+
 ## [0.2.0] - 2026-08-10
 
 ### Changed
@@ -172,6 +186,7 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hebercosfer/floating-claude.nvim/releases/tag/v0.1.0

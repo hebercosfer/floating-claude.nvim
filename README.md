@@ -309,7 +309,7 @@ Neovim; only what genuinely needs the higher floor is `main`-only.
 
 | Neovim | Plugin line | Branch              | Pin with             |
 | ------ | ----------- | ------------------- | -------------------- |
-| 0.11+  | 0.2.x       | `main`              | `version = "~0.2.0"` |
+| 0.11+  | 0.3.x       | `main`              | `version = "~0.3.0"` |
 | 0.10   | 0.1.x       | `support/nvim-0.10` | `version = "~0.1.0"` |
 
 ```lua
