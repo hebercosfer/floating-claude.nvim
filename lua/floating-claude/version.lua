@@ -3,9 +3,8 @@
 -- Semver over the surface you touch: setup() options, the provider table, the
 -- commands and the Lua API. What the plugin reads is deliberately NOT part of
 -- that surface -- see compat.lua for the claudecode.nvim / Claude Code pair a
--- given release is built against. Moving that pair is a minor bump, because a
--- new Claude UI can change what the auto-minimize does without a line of the
--- API changing.
+-- given release is built against, and the README's Versioning section for the
+-- one statement of what moves which number.
 
 ---@param v { major: integer, minor: integer, patch: integer, prerelease: string|nil }
 ---@return string
@@ -24,7 +23,8 @@ local M = {
   prerelease = nil,
 }
 
---- "0.1.0". Also available as tostring(require("floating-claude").version).
+--- The version as "major.minor.patch". Also available as
+--- tostring(require("floating-claude").version).
 ---@return string
 function M:string()
   return to_string(self)
