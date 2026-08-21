@@ -42,7 +42,7 @@ Claude has settled and is waiting for you.
 - [coder/claudecode.nvim](https://github.com/coder/claudecode.nvim) — `main`,
   tested at [`2390c6e`](https://github.com/coder/claudecode.nvim/commit/2390c6e45c4789072c293ac69de051d169668b29)
   (v0.3.0 + 53, 2026-06-25); v0.2.0 is the floor
-- Claude Code CLI 2.1+ — tested at 2.1.220
+- Claude Code CLI 2.1+ — tested at 2.1.238
 
 Both are hard requirements, not suggestions: this plugin implements
 claudecode.nvim's terminal provider interface and reads Claude's state out of
@@ -259,9 +259,9 @@ is spawned; `:checkhealth floating-claude` reports what you actually have.
 
 | Dependency      | Minimum | Tested against                   |
 | --------------- | ------- | -------------------------------- |
-| Neovim          | 0.10    | 0.12                             |
+| Neovim          | 0.10    | 0.10.4                           |
 | claudecode.nvim | 0.2.0   | `main` @ `2390c6e` (v0.3.0 + 53) |
-| Claude Code CLI | 2.1.0   | 2.1.220                          |
+| Claude Code CLI | 2.1.0   | 2.1.238                          |
 
 From claudecode.nvim we need `terminal.ensure_visible` — what lets a minimized
 Claude *stay* minimized while you resolve a diff — and the `claudecode.diff`
@@ -284,13 +284,26 @@ the history in [CHANGELOG.md](CHANGELOG.md). The current version is readable at
 runtime:
 
 ```lua
-tostring(require("floating-claude").version)  --> "0.1.0"
+tostring(require("floating-claude").version)  --> "major.minor.patch"
 ```
 
 The public surface is `setup()` options, the provider table, the commands and
-the Lua API. The versions in the table above are not part of it: retargeting a
-newer claudecode.nvim or Claude Code UI is a minor bump, because a redrawn TUI
-changes what the auto-minimize does without changing a line of API.
+the Lua API. The versions in the table above are not part of it, and they move
+under two different rules:
+
+- **Retarget** — claudecode.nvim or the Claude Code TUI changed and this plugin
+  had to follow, usually in `parser.lua`. A **minor** bump: what the
+  auto-minimize does changed, without a line of API changing.
+- **Re-verify** — a newer version was tested and nothing here needed to change.
+  A **patch** bump: the pin is a claim about what was tested, and the claim got
+  refreshed.
+
+Either way the pair moves only at release time. Between releases it says what
+the last release was tested against, which is the useful thing for it to say.
+
+This line is the exception that proves the rule. `v0.2.0` is taken on `main` and
+tags are global, so 0.1.x structurally cannot emit a minor: everything here
+ships as a patch, retargets and features included.
 
 To follow tagged releases instead of `main`:
 

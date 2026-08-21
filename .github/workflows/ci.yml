@@ -33,12 +33,13 @@ jobs:
       - uses: actions/checkout@v7
 
       # Pinned rather than tracking plenary's default branch, so a change over
-      # there cannot turn this repo's CI red on its own.
+      # there cannot turn this repo's CI red on its own. Moved deliberately, at
+      # release prep, with the suite green on the new one.
       - name: Check out plenary.nvim
         uses: actions/checkout@v7
         with:
           repository: nvim-lua/plenary.nvim
-          ref: master
+          ref: 74b06c6c75e4eeb3108ec01852001636d85a932b
           path: .tests/plenary.nvim
 
       - uses: rhysd/action-setup-vim@v1

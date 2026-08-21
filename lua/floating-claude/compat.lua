@@ -9,10 +9,11 @@
 
 local M = {}
 
--- The versions this release is developed and tested against.
+-- The versions this release is developed and tested against. Refreshed only at
+-- release time; the README's Versioning section says which bump that costs.
 M.tested = {
   claudecode = { version = "0.3.0", commit = "2390c6e", date = "2026-06-25" },
-  claude_code = "2.1.220",
+  claude_code = "2.1.238",
 }
 
 -- The oldest versions we run against without complaining.
