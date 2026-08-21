@@ -12,6 +12,26 @@ patches — is written out once, in the README's
 
 ## [Unreleased]
 
+### Added
+
+- `:FloatingClaudeDemo`, a guided tour of the plugin: the float, the corner it
+  collapses into, the two config shapes for the body, and an edit approval it
+  gets out of the way for and comes back from. Interactive by default — it
+  stops and asks you to press the minimize chord, to click the corner, to click
+  away, to accept or reject the diff — and `:FloatingClaudeDemo auto` makes
+  every one of those moves itself, for recording it unattended.
+  `:FloatingClaudeDemo stop` ends one early.
+
+  The Claude in that float is a scripted stand-in, and so is the diff: the
+  plugin only ever knows Claude through the lines in a buffer and a diff
+  through a window's name, so a demo owes it exactly that, and gets to run with
+  neither claudecode.nvim nor the CLI installed and come out the same way
+  twice. The float, the notification, the watcher and the provider are all the
+  real ones — the diff teardown even calls `provider.ensure_visible()` in
+  upstream's order, so the post-diff restore demonstrates the real
+  `restore_idle_ms` debounce. The tour borrows the plugin's defaults for its
+  duration and puts your own settings back when it ends.
+
 ## [0.1.1] - 2026-08-21
 
 Everything `main` shipped as [0.3.0](https://github.com/hebercosfer/floating-claude.nvim/blob/main/CHANGELOG.md),
