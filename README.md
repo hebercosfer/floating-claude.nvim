@@ -18,7 +18,7 @@
 > letter s. That's it. That's the mechanism. Enjoy `parser.lua`, and mind the
 > box-drawing glyphs.
 
-A floating-window terminal provider for [claudecode.nvim](https://github.com/coder/claudecode.nvim).
+A floating-window terminal provider for [claudecode.nvim](https://github.com/coder/claudecode.nvim) improving the workflow for those who read (and write) the code.
 
 Claude Code opens in a centered float instead of a split — and, crucially, gets
 out of your way on its own: when Claude proposes an edit, the float collapses
