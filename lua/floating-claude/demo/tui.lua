@@ -16,8 +16,7 @@
 
 local state = require("floating-claude.state")
 
----@type uv
-local uv = vim.uv
+local uv = vim.uv or vim.loop
 
 local M = {}
 
