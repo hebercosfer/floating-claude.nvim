@@ -17,23 +17,16 @@ out of your way on its own: when Claude proposes an edit, the float collapses
 into a small corner notification so the diff is visible, and it comes back once
 Claude has settled and is waiting for you.
 
-```
-┌──────────────────────────────────────┐      ┌──────────────────────────────┐
-│                                      │      │  old        │      proposed  │
-│      ╭─────  Claude Code  ─────╮     │      │             │                │
-│      │                         │     │  →   │             │     ╭ Claude ╮ │
-│      │   > implement the …     │     │      │             │     │ ✶ 17s… │ │
-│      ╰─────────────────────────╯     │      │             │     ╰────────╯ │
-└──────────────────────────────────────┘      └──────────────────────────────┘
-        float while you work                     minimized while you review
-```
+![Claude Code in a centered float; a diff opens and the float collapses into a corner notification that keeps reporting; it comes back once Claude goes idle](docs/demo.gif)
 
 ## See it move
 
-`:FloatingClaudeDemo` runs a guided tour of the whole thing — the float, the
-corner it collapses into, an edit approval it gets out of the way for — pausing
-to ask you to click the parts that are about clicking.
-`:FloatingClaudeDemo auto` makes those moves itself, which is the one to record.
+That recording is `:FloatingClaudeDemo auto` running unattended — the float, the
+corner it collapses into, both shapes of the notification body, and an edit
+approval it gets out of the way for and comes back from.
+
+`:FloatingClaudeDemo` runs the same tour interactively, pausing to ask you to
+click the parts that are about clicking.
 
 The Claude in that float is a scripted stand-in: no CLI, no network, nothing
 typed. Everything around it is the real plugin reading a fake terminal, so the
@@ -395,6 +388,7 @@ does not fail the run.
 | `tests/`            | plenary specs and their minimal init                    |
 | `health.lua`        | `:checkhealth floating-claude`                          |
 | `demo/`             | The guided tour: a scripted Claude, a stand-in diff      |
+| `docs/`             | The recording at the top of this file                   |
 
 ## License
 
