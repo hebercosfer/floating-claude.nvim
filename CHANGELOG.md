@@ -32,6 +32,15 @@ patches — is written out once, in the README's
   `restore_idle_ms` debounce. The tour borrows the plugin's defaults for its
   duration and puts your own settings back when it ends.
 
+### Fixed
+
+- Bringing the float back while a diff is open now works on the first try. The
+  diff opens in its own tab, so `minimize_on_leave` collapsed the float before
+  the poll loop ever saw the diff — which left the poll thinking no diff had
+  been reacted to, and minimizing the float straight back the first time it was
+  asked for. The second attempt worked, which is what made it look like a
+  timing quirk rather than a missed flag.
+
 ## [0.1.1] - 2026-08-21
 
 Everything `main` shipped as [0.3.0](https://github.com/hebercosfer/floating-claude.nvim/blob/main/CHANGELOG.md),
