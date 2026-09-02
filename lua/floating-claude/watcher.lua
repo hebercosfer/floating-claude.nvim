@@ -58,14 +58,26 @@ function M.start(handlers)
       end
       local has_diff = parser.diff_visible()
       local busy = has_diff or parser.is_working()
+      -- Track the diff whether or not the float is still up. It usually is
+      -- not: the diff opens in its own tab, so claudecode's `:tabnew` fires
+      -- WinLeave and `minimize_on_leave` collapses the float before this poll
+      -- ever runs. Marking `diff_seen` only from inside the minimize below
+      -- meant the flag stayed false through the whole review -- and then the
+      -- first time the user asked for the float back, to read the request they
+      -- are being asked to approve, this read it as a diff never reacted to
+      -- and minimized it straight back. The second attempt worked, because the
+      -- first had finally set the flag.
+      if not has_diff then
+        state.diff_seen = false
+      elseif not state.win_valid() then
+        -- A diff is up and the float is already out of the way: nothing to do,
+        -- and nothing to undo if the user brings it back deliberately.
+        state.diff_seen = true
+      end
       if state.win_valid() then
-        if opts.minimize_on_diff and has_diff then
-          if not state.diff_seen then
-            state.diff_seen = true
-            handlers.minimize()
-          end
-        elseif not has_diff then
-          state.diff_seen = false
+        if opts.minimize_on_diff and has_diff and not state.diff_seen then
+          state.diff_seen = true
+          handlers.minimize()
         end
       elseif opts.restore_on_input then
         -- Restore only after Claude has been idle long enough to be sure

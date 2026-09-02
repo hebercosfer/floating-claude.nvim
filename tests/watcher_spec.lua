@@ -171,9 +171,12 @@ describe("watcher", function()
   end)
 
   describe("while the float is up", function()
+    local float
+
     before_each(function()
       vim.cmd("split")
-      state.win = vim.api.nvim_get_current_win()
+      float = vim.api.nvim_get_current_win()
+      state.win = float
     end)
 
     it("minimizes when a diff opens", function()
@@ -190,6 +193,28 @@ describe("watcher", function()
         end, 20),
         "the diff opened under the float and the float stayed there"
       )
+    end)
+
+    it("does not fight a restore the user asked for", function()
+      -- The float is usually gone before the poll ever sees the diff: it opens
+      -- in its own tab, and the WinLeave that `:tabnew` fires collapses the
+      -- float through `minimize_on_leave`. Asking for it back is then a
+      -- deliberate act -- you want to reread the request you are approving --
+      -- and it used to take two goes, because the poll had never marked the
+      -- diff as reacted to and read the restore as a fresh one.
+      terminal(IDLE)
+      diff_on_screen()
+      state.win = -1 -- something else got there first
+      watcher.start(handlers)
+      vim.wait(100)
+      assert.equals(0, minimized, "nothing was up to minimize")
+
+      state.win = float -- the user brings it back by hand
+
+      vim.wait(300, function()
+        return minimized > 0
+      end, 20)
+      assert.equals(0, minimized, "the float was taken away again on the next poll")
     end)
 
     it("leaves the float alone for a hidden leftover", function()
