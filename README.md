@@ -383,7 +383,7 @@ than that Neovim moved on.
 | `tests/`            | plenary specs and their minimal init                    |
 | `health.lua`        | `:checkhealth floating-claude`                          |
 | `demo/`             | The guided tour: a scripted Claude, a stand-in diff      |
-| `docs/`             | The recording at the top of this file                   |
+| `docs/`             | The recording at the top of this file, and how to remake it |
 
 ## License
 
