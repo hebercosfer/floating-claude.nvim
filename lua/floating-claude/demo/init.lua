@@ -23,8 +23,7 @@ local terminal = require("floating-claude.terminal")
 local tui = require("floating-claude.demo.tui")
 local watcher = require("floating-claude.watcher")
 
----@type uv
-local uv = vim.uv
+local uv = vim.uv or vim.loop
 
 local M = {}
 
