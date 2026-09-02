@@ -200,7 +200,11 @@ function M.build()
       auto = function()
         diff.resolve("accepted")
       end,
-      auto_ms = 4000,
+      -- The diff opens 1.8s into the beat, so this is really "how long does the
+      -- diff stay up" plus that. At 4000 it was gone in 2.2s -- long enough to
+      -- see in person, a flicker in a recording, which is the only thing this
+      -- number affects.
+      auto_ms = 7000,
       timeout_ms = 120000,
     },
 
