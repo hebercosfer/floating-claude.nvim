@@ -23,6 +23,7 @@ M.provider = require("floating-claude.provider")
 --- config.lua apply as-is when it is never called.
 function M.setup(opts)
   config.setup(opts)
+  require("floating-claude.keymaps").apply()
 end
 
 --- Collapse the float into the corner notification.
@@ -33,6 +34,12 @@ end
 --- Bring the full float back (also dismisses the notification).
 function M.restore()
   require("floating-claude.terminal").restore()
+end
+
+--- Take Claude off the screen, float and notification both, leaving it running.
+--- It comes back as the notification once it is waiting on you.
+function M.hide()
+  require("floating-claude.terminal").hide()
 end
 
 --- Flip between the float and the corner notification.

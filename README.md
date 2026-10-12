@@ -129,6 +129,10 @@ require("floating-claude").setup({
     -- Terminal-mode mapping in the Claude buffer, to minimize without leaving
     -- insert mode. Set to false to skip it.
     minimize = "<C-x><C-m>",
+    -- Normal-mode mapping that takes Claude off the screen, float and corner
+    -- both, while it keeps running. Set to false to skip it; a mapping of
+    -- your own on the same key is left alone.
+    hide = "<leader>aq",
   },
   -- Warn once per session when claudecode.nvim / Claude Code are older than
   -- the pair this plugin is built against. Set to false to silence.
@@ -169,10 +173,18 @@ vim.api.nvim_set_hl(0, "FloatingClaudeDetail", { link = "LineNr" })
 | `:FloatingClaudeMinimize`      | `require("floating-claude").minimize()`     | Collapse the float into the notification |
 | `:FloatingClaudeRestore`       | `require("floating-claude").restore()`      | Bring the full float back                |
 | `:FloatingClaudeToggle`        | `require("floating-claude").toggle_mini()`  | Flip between the two                     |
+| `:FloatingClaudeHide`          | `require("floating-claude").hide()`         | Take both off the screen (`<leader>aq`)  |
 | `:FloatingClaudeDemo [auto]`   | `require("floating-claude").demo(opts)`     | Run the [guided tour](#see-it-move)      |
 | `:FloatingClaudeDemo stop`     | `require("floating-claude").demo_stop()`    | End the tour early                       |
 
 `require("floating-claude").is_running()` reports whether Claude Code is live.
+
+Hiding leaves Claude running with neither window up. It comes back as the
+corner on its own once it is waiting on you, and `:ClaudeCode` — the
+`<leader>ac` in claudecode.nvim's example config — brings back the full float
+whenever you want it. `<leader>aq` is mapped in normal mode only: inside the
+float your keys go to Claude, so step out with `<C-\><C-n>` first, or minimize
+with `<C-x><C-m>` and hide from there.
 
 Example keymap:
 

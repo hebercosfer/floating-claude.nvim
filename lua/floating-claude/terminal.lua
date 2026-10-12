@@ -157,6 +157,25 @@ function M.restore()
   end)
 end
 
+-- Take Claude off the screen entirely -- neither the float nor the corner --
+-- with the job still running. It comes back as the corner once it is waiting
+-- on you (see watcher.lua), or as the float whenever you open it.
+function M.hide()
+  if not state.buf_valid() then
+    vim.notify("Claude Code is not running.", vim.log.levels.WARN)
+    return
+  end
+  quietly(function()
+    M.hide_window()
+    notification.hide()
+  end)
+  -- Hidden during a diff stays hidden once it closes: you put Claude out of
+  -- sight, not the diff.
+  if state.before_diff then
+    state.before_diff = "hidden"
+  end
+end
+
 -- Flip between the float and the corner notification.
 function M.toggle_mini()
   if state.mini_win_valid() then
