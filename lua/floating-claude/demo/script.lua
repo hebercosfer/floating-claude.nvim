@@ -209,14 +209,13 @@ function M.build()
     },
 
     {
-      title = "The lull, and the wait",
+      title = "Back where it was",
       lines = {
-        "Resolving it sends Claude back to work for a moment, and the corner goes with the tab "
-          .. "that held it.",
-        "The float waits for sustained idle before coming back — `auto.restore_idle_ms`, 1200ms "
-          .. "— so that lull never pops it over what you were reading. The clock only starts on "
-          .. "a real busy-to-idle edge, which is why a minimize you asked for yourself is never "
-          .. "undone.",
+        "Resolving it puts Claude back the way the diff found it — here the float, straight "
+          .. "away, though Claude is back at work. The corner goes with the tab that held it.",
+        "From the corner it would stay put until Claude went idle for a sustained stretch — "
+          .. "`auto.restore_idle_ms`, 1200ms — and only on a real busy-to-idle edge, which is "
+          .. "why a minimize you asked for yourself is never undone.",
       },
       enter = function()
         diff.close()

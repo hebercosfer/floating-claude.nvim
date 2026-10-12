@@ -16,7 +16,11 @@ local M = {
   pulse = 0,
   -- Background watcher that auto-minimizes on diffs and restores when idle.
   watch_timer = nil,
-  diff_seen = false,
+  -- What the watcher saw on its last poll without a diff on screen, and, once
+  -- one appears, what Claude was before it: where it goes back to when the
+  -- diff closes. nil while there is no diff.
+  last_mode = nil,
+  before_diff = nil,
   was_busy = false,
   -- Timestamp (uv.now ms) of the busy->idle transition, for debouncing the
   -- auto-restore so the brief lull after a diff is resolved doesn't pop the
@@ -44,6 +48,20 @@ end
 
 function M.mini_win_valid()
   return M.mini_win ~= -1 and vim.api.nvim_win_is_valid(M.mini_win)
+end
+
+--- Which of its three faces a running Claude is showing: the full float, the
+--- corner notification, or neither. Read off the windows rather than kept in a
+--- flag, so nothing that opens or closes one of them can leave it stale.
+---@return "float"|"corner"|"hidden"
+function M.mode()
+  if M.win_valid() then
+    return "float"
+  end
+  if M.mini_win_valid() then
+    return "corner"
+  end
+  return "hidden"
 end
 
 return M
