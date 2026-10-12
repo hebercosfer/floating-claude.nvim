@@ -5,6 +5,8 @@
 -- What these are really about is what counts as "busy". A diff the user denied
 -- and then closed leaves its proposed buffer loaded but hidden (see
 -- parser.lua), and while that counted as a live diff the restore never fired.
+-- And, since a diff became a detour rather than a destination, where Claude
+-- goes once one closes: back to whatever it was before the diff opened.
 
 local config = require("floating-claude.config")
 local state = require("floating-claude.state")
@@ -37,7 +39,7 @@ local WORKING = {
 }
 
 describe("watcher", function()
-  local restored, minimized, handlers, buffers
+  local restored, minimized, shown, handlers, buffers
 
   local function terminal(lines)
     local buf = vim.api.nvim_create_buf(false, true)
@@ -58,10 +60,27 @@ describe("watcher", function()
     return buf, win
   end
 
+  -- The corner notification, as far as the watcher can tell: a window.
+  local function corner()
+    local buf = vim.api.nvim_create_buf(false, true)
+    table.insert(buffers, buf)
+    state.mini_win = vim.api.nvim_open_win(buf, false, {
+      relative = "editor",
+      width = 10,
+      height = 2,
+      col = 0,
+      row = 0,
+    })
+    return state.mini_win
+  end
+
   before_each(function()
     config.setup({ auto = { watch_ms = 20, restore_idle_ms = 60 } })
-    restored, minimized = 0, 0
+    restored, minimized, shown = 0, 0, 0
     handlers = {
+      show = function()
+        shown = shown + 1
+      end,
       restore = function()
         restored = restored + 1
       end,
@@ -70,12 +89,14 @@ describe("watcher", function()
       end,
     }
     buffers = {}
-    -- Minimized: a live Claude with no float.
-    state.buf, state.win = -1, -1
+    state.buf, state.win, state.mini_win = -1, -1, -1
   end)
 
   after_each(function()
     watcher.stop()
+    if state.mini_win_valid() then
+      vim.api.nvim_win_close(state.mini_win, true)
+    end
     vim.cmd("silent! only")
     for _, buf in ipairs(buffers) do
       if vim.api.nvim_buf_is_valid(buf) then
@@ -83,11 +104,15 @@ describe("watcher", function()
       end
     end
     buffers = {}
-    state.buf, state.win = -1, -1
+    state.buf, state.win, state.mini_win = -1, -1, -1
     config.setup({})
   end)
 
   describe("while minimized", function()
+    before_each(function()
+      corner()
+    end)
+
     it("stays put while the diff is on screen", function()
       terminal(IDLE)
       diff_on_screen()
@@ -167,6 +192,100 @@ describe("watcher", function()
         return restored > 0
       end, 20)
       assert.equals(0, restored, "the float came back over your work mid-turn")
+    end)
+  end)
+
+  -- Hidden: Claude is running, but neither the float nor the corner is up.
+  describe("while hidden", function()
+    it("brings back the corner, not the float, once Claude settles", function()
+      terminal(WORKING)
+      watcher.start(handlers)
+      vim.wait(100)
+
+      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, FINISHED)
+
+      assert.is_true(
+        vim.wait(1000, function()
+          return shown > 0
+        end, 20),
+        "Claude is waiting on you and nothing says so"
+      )
+      assert.equals(0, restored, "hidden came back as the full float")
+    end)
+  end)
+
+  describe("once a diff closes", function()
+    -- Open a diff, let the poll see it, then resolve it the way close_tab does,
+    -- with Claude still working on the rest of the turn.
+    local function detour()
+      local buf, win = diff_on_screen()
+      vim.wait(100)
+      vim.api.nvim_win_close(win, true)
+      vim.api.nvim_buf_delete(buf, { force = true })
+    end
+
+    it("puts the float straight back if it was up before", function()
+      vim.cmd("split")
+      state.win = vim.api.nvim_get_current_win()
+      terminal(WORKING)
+      watcher.start(handlers)
+      vim.wait(100)
+
+      -- claudecode's `:tabnew` fires WinLeave, and minimize_on_leave collapses
+      -- the float before any poll sees the diff. The poll has to know what it
+      -- was from before that, not from what it finds.
+      state.win = -1
+      corner()
+      detour()
+
+      assert.is_true(
+        vim.wait(300, function()
+          return restored > 0
+        end, 20),
+        "the float waited for the turn to end instead of coming back with the diff gone"
+      )
+    end)
+
+    it("stays in the corner if that is where it was, until Claude settles", function()
+      corner()
+      terminal(WORKING)
+      watcher.start(handlers)
+      vim.wait(100)
+
+      detour()
+      vim.wait(300, function()
+        return restored > 0
+      end, 20)
+      assert.equals(0, restored, "the float came back mid-turn")
+
+      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, FINISHED)
+      assert.is_true(
+        vim.wait(1000, function()
+          return restored > 0
+        end, 20),
+        "the float never came back once Claude was waiting on you"
+      )
+    end)
+
+    it("stays hidden if it was hidden, until Claude settles", function()
+      terminal(WORKING)
+      watcher.start(handlers)
+      vim.wait(100)
+
+      detour()
+      vim.wait(300, function()
+        return restored + shown > 0
+      end, 20)
+      assert.equals(0, restored + shown, "hidden Claude reappeared mid-turn")
+
+      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, FINISHED)
+      assert.is_true(
+        vim.wait(1000, function()
+          return shown > 0
+        end, 20),
+        "the corner never came back once Claude was waiting on you"
+      )
+      assert.equals(0, restored, "hidden came back as the full float")
     end)
   end)
 

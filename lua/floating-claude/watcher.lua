@@ -17,7 +17,8 @@ function M.stop()
     end
     state.watch_timer = nil
   end
-  state.diff_seen = false
+  state.last_mode = nil
+  state.before_diff = nil
   state.was_busy = false
   state.idle_since = nil
 end
@@ -25,8 +26,13 @@ end
 -- Poll the live terminal/diff state and move the float in step with the cycle:
 --   * float open + an edit-approval diff appears  -> minimize (the diff would
 --     otherwise be hidden behind the float);
---   * float minimized + Claude settles idle       -> restore (Claude is now
---     waiting for the user or done), UNLESS a diff is still up (review that).
+--   * the diff closes                             -> back to what Claude was
+--     before it opened: the float comes straight back, the corner and hidden
+--     stay as they are;
+--   * minimized + Claude settles idle             -> restore (Claude is now
+--     waiting for the user or done), UNLESS a diff is still up (review that);
+--   * hidden + Claude settles idle                -> the corner, so you hear
+--     about it without the float landing on your work.
 -- "Busy" = actively working OR a diff on screen. On screen, not merely loaded:
 -- a diff the user denied and then closed leaves its proposed buffer hidden but
 -- alive (see parser.lua), and counting that as busy resets the idle clock on
@@ -35,11 +41,13 @@ end
 -- Restore waits for SUSTAINED idle (`restore_idle_ms`) after a busy->idle
 -- transition: the brief lull between a diff being approved/denied and Claude
 -- resuming work is not enough to pop the float -- it only returns when
--- interaction is requested or the task completes.
+-- interaction is requested or the task completes. A float the diff took away
+-- is the exception: it was open when the diff arrived, so putting it back is
+-- undoing the detour, not interrupting anything.
 -- The transition gating also means a manual minimize while Claude is already
 -- idle is never fought (no busy->idle edge => idle_since never starts).
 --
--- `handlers` carries the minimize/restore callbacks, so the watcher stays
+-- `handlers` carries the minimize/restore/show callbacks, so the watcher stays
 -- independent of the window layer that owns them.
 function M.start(handlers)
   M.stop()
@@ -59,29 +67,33 @@ function M.start(handlers)
       end
       local has_diff = parser.diff_visible()
       local busy = has_diff or parser.is_working()
-      -- Track the diff whether or not the float is still up. It usually is
-      -- not: the diff opens in its own tab, so claudecode's `:tabnew` fires
-      -- WinLeave and `minimize_on_leave` collapses the float before this poll
-      -- ever runs. Marking `diff_seen` only from inside the minimize below
-      -- meant the flag stayed false through the whole review -- and then the
-      -- first time the user asked for the float back, to read the request they
-      -- are being asked to approve, this read it as a diff never reacted to
-      -- and minimized it straight back. The second attempt worked, because the
-      -- first had finally set the flag.
-      if not has_diff then
-        state.diff_seen = false
-      elseif not state.win_valid() then
-        -- A diff is up and the float is already out of the way: nothing to do,
-        -- and nothing to undo if the user brings it back deliberately.
-        state.diff_seen = true
-      end
-      if state.win_valid() then
-        if opts.minimize_on_diff and has_diff and not state.diff_seen then
-          state.diff_seen = true
+      local mode = state.mode()
+
+      if has_diff and state.before_diff == nil then
+        -- The first poll to see this diff. What Claude was comes from the poll
+        -- before, not from now: the diff opens in its own tab, and the
+        -- WinLeave claudecode's `:tabnew` fires has usually collapsed the float
+        -- through `minimize_on_leave` before this runs.
+        state.before_diff = state.last_mode or mode
+        -- Still up only when nothing else got there first. Minimize it once,
+        -- here, and never on a later poll: the user bringing the float back
+        -- mid-review -- to reread the request they are approving -- is
+        -- deliberate, and used to take two goes because the poll read it as a
+        -- diff it had not reacted to yet.
+        if mode == "float" and opts.minimize_on_diff then
           handlers.minimize()
         end
-      elseif opts.restore_on_input then
-        -- Restore only after Claude has been idle long enough to be sure
+      elseif not has_diff then
+        if state.before_diff == "float" and mode ~= "float" then
+          handlers.restore()
+          mode = "float"
+        end
+        state.before_diff = nil
+        state.last_mode = mode
+      end
+
+      if mode ~= "float" and opts.restore_on_input then
+        -- Come back only after Claude has been idle long enough to be sure
         -- it is waiting for input / done -- not during the lull right
         -- after a diff is resolved (Claude resumes within that window
         -- and clears idle_since before the threshold).
@@ -94,7 +106,11 @@ function M.start(handlers)
           end
         elseif (uv.now() - state.idle_since) >= opts.restore_idle_ms then
           state.idle_since = nil
-          handlers.restore()
+          if mode == "hidden" then
+            handlers.show()
+          else
+            handlers.restore()
+          end
         end
       end
       state.was_busy = busy

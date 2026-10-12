@@ -233,7 +233,7 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
     end, { buffer = state.buf, desc = "Minimize Claude to a corner notification" })
   end
 
-  watcher.start({ minimize = M.minimize, restore = M.restore })
+  watcher.start({ minimize = M.minimize, restore = M.restore, show = notification.show })
 
   -- Handing focus back is our own move, not the user turning away: without the
   -- guard, launching with focus=false would minimize Claude on the spot.

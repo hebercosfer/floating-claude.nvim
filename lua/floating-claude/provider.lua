@@ -91,13 +91,17 @@ end
 -- diff_visible() (is one on screen). It arrives from diff.lua right after the
 -- diff tab is closed, which sounds like "no diff pending" -- but the proposed
 -- buffer is scratch with bufhidden="hide", so closing its window only hides it
--- and it stays loaded until the deletion a few lines later. diff_pending()
--- looks at loaded buffers, so it still reports true and we take the branch
--- above. The post-diff restore therefore remains the watcher's, gated on
--- restore_idle_ms, which is what stops the float flapping back over your work
--- during the lull before Claude resumes -- once per edit in a multi-edit turn.
--- If upstream ever wipes that buffer instead of hiding it, this call starts
--- restoring immediately and that gating is lost.
+-- and it stays loaded until the deletion a few lines later. Pending but not
+-- visible is therefore this exact moment, and the answer to it is wherever
+-- Claude was before the diff opened, which the watcher kept in `before_diff`:
+-- the float comes straight back, a hidden Claude stays hidden, and the corner
+-- is put back up -- it lived in the diff's tab and closed along with it. The
+-- watcher would get to the float on its next poll too; doing it here saves a
+-- flash of the corner in between. The later restore of a Claude that was in
+-- the corner remains the watcher's, gated on restore_idle_ms, which is what
+-- stops it landing on your work during the lull before Claude resumes. If
+-- upstream ever wipes that buffer instead of hiding it, this call can no
+-- longer recognise the cleanup and falls through to the send behaviour below.
 --
 -- The cost of keeping the wider predicate here: a leftover hidden proposed
 -- buffer (a denied diff whose tab the user closed) also holds this branch, so
@@ -116,6 +120,14 @@ end
 -- otherwise reopen the float via open(focus=false).)
 function M.ensure_visible()
   if state.win_valid() then
+    return true
+  end
+  if state.before_diff and parser.diff_pending() and not parser.diff_visible() then
+    if state.before_diff == "float" then
+      terminal.restore()
+    elseif state.before_diff == "corner" and state.buf_valid() then
+      notification.show()
+    end
     return true
   end
   if state.mini_win_valid() then

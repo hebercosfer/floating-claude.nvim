@@ -90,6 +90,54 @@ describe("provider", function()
       vim.api.nvim_buf_delete(buf, { force = true })
     end)
 
+    -- Upstream's diff cleanup calls in here after closing the diff's tab, and
+    -- the corner that was in that tab went with it -- so by the windows alone,
+    -- every Claude looks hidden at this point. What it was before the diff
+    -- opened is what decides.
+    describe("during a diff's cleanup", function()
+      local buf, diff_buf
+
+      before_each(function()
+        buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_lines(buf, 0, -1, false, { "Done." })
+        state.buf = buf
+        -- Closed, but still loaded until upstream deletes it a few lines on.
+        diff_buf = vim.api.nvim_create_buf(false, true)
+        vim.api.nvim_buf_set_name(diff_buf, "✻ [Claude Code] init.lua (a1b2c3) ⧉ (proposed)")
+      end)
+
+      after_each(function()
+        require("floating-claude.notification").hide()
+        if state.win_valid() then
+          vim.api.nvim_win_close(state.win, true)
+        end
+        state.before_diff = nil
+        vim.api.nvim_buf_delete(diff_buf, { force = true })
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end)
+
+      it("puts the float back if the diff took it away", function()
+        state.before_diff = "float"
+        assert.is_true(provider.ensure_visible())
+        assert.is_true(state.win_valid(), "the float should be back")
+        assert.is_false(state.mini_win_valid(), "the corner should not have flashed up first")
+      end)
+
+      it("brings the corner back if that is where Claude was", function()
+        state.before_diff = "corner"
+        assert.is_true(provider.ensure_visible())
+        assert.is_true(state.mini_win_valid())
+        assert.is_false(state.win_valid())
+      end)
+
+      it("keeps Claude hidden if it was hidden", function()
+        state.before_diff = "hidden"
+        assert.is_true(provider.ensure_visible())
+        assert.is_false(state.mini_win_valid(), "the corner came back uninvited")
+        assert.is_false(state.win_valid(), "the float came back uninvited")
+      end)
+    end)
+
     -- :ClaudeCodeSend routes here rather than to open() unless focus_after_send
     -- is set, so a minimized Claude has to come back or the keymap looks dead.
     describe("with Claude minimized", function()
