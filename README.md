@@ -197,11 +197,18 @@ two things:
   lands under it, both carrying one. The parenthesised elapsed timer is what
   separates them.
 
-Restore waits for _sustained_ idle (`restore_idle_ms`) after a busy→idle
+A diff is a detour: once it closes, Claude goes back to what it was when the
+diff opened. A float the diff took away comes straight back, even though Claude
+is still working; a Claude that was in the corner stays there, and one you had
+hidden stays hidden.
+
+From the corner, Claude comes back as the float once it is waiting on you. That
+restore waits for _sustained_ idle (`restore_idle_ms`) after a busy→idle
 transition, so the brief lull between approving a diff and Claude resuming
-doesn't pop the float back over your work. Because the clock only starts on a
-real busy→idle edge, a manual minimize while Claude is already idle is never
-undone by the watcher.
+doesn't pop the float over your work. Because the clock only starts on a real
+busy→idle edge, a manual minimize while Claude is already idle is never undone
+by the watcher. A hidden Claude comes back on that same edge, but only as far
+as the corner: enough to tell you it is waiting, without landing on your work.
 
 The same scraping feeds the notification, refreshing every `refresh_ms`, and it
 keeps the two apart. The title carries what Claude is *doing* — `✽ Infusing… 8m
