@@ -11,6 +11,15 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-10-12
+
+Claude gets out of the way more precisely and comes back to where it was. A
+diff is now a detour: the float it took away returns the moment it closes, and
+a Claude you had minimized or hidden stays that way. Hiding is new, behind
+`<leader>aq`; the corner can be dragged off whatever it covers; it holds still
+while it waits on you; and it reads past Claude's own `/diff` panel. The
+guided tour, `:FloatingClaudeDemo`, ships here too.
+
 ### Added
 
 - The corner notification can be dragged with the mouse, by its body or its
@@ -30,11 +39,13 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
   `keymaps.hide = false` turns it off.
 
 - `:FloatingClaudeDemo`, a guided tour of the plugin: the float, the corner it
-  collapses into, the two config shapes for the body, and an edit approval it
-  gets out of the way for and comes back from. Interactive by default — it
-  stops and asks you to press the minimize chord, to click the corner, to click
-  away, to accept or reject the diff — and `:FloatingClaudeDemo auto` makes
-  every one of those moves itself, for recording it unattended.
+  collapses into, the two config shapes for the body, an edit approval it gets
+  out of the way for and comes back from, and the corner dragged aside, hidden,
+  and back when Claude is waiting. Interactive by default — it stops and asks
+  you to press the minimize chord, to click the corner, to click away, to
+  accept or reject the diff, to drag the corner and to hide it — and
+  `:FloatingClaudeDemo auto` makes every one of those moves itself, for
+  recording it unattended.
   `:FloatingClaudeDemo stop` ends one early.
 
   The Claude in that float is a scripted stand-in, and so is the diff: the
@@ -82,6 +93,12 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
   been reacted to, and minimizing the float straight back the first time it was
   asked for. The second attempt worked, which is what made it look like a
   timing quirk rather than a missed flag.
+
+### Compatibility
+
+- Neovim 0.11+
+- claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
+- Claude Code CLI 2.1.296; minimum 2.1.0
 
 ## [0.3.0] - 2026-08-21
 
@@ -258,7 +275,8 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/hebercosfer/floating-claude.nvim/releases/tag/v0.1.0

@@ -1,8 +1,9 @@
 # Recording the tour
 
 `../demo.gif` is `:FloatingClaudeDemo auto` captured from a real Neovim, not a
-drawing. These two scripts remake it, so the picture in the README can be
-regenerated when the float or the notification changes shape.
+drawing, and the video in the README is encoded from the same frames. These two
+scripts remake both, so the recording can be regenerated when the float or the
+notification changes shape.
 
 ```sh
 ./capture.sh                       # detached tmux, 140x38, ~72s
@@ -21,9 +22,9 @@ all again. It is safe to delete.
 
 ## The video
 
-The README also links an MP4 of the same frames, for watching with a player
-that pauses and scrubs. GitHub only plays video from its own attachment host, so
-it is not in this tree: encode it, drag it into any comment box on GitHub, and
+The README shows an MP4 of the same frames rather than the GIF: sharper text,
+and a player that pauses and scrubs. GitHub only plays video from its own
+attachment host, so it is not in this tree: encode it, drag it into any comment box on GitHub, and
 use the `user-attachments` URL that comes back. `imageio-ffmpeg` brings its own
 ffmpeg, so nothing else needs installing:
 
