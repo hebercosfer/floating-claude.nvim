@@ -109,6 +109,7 @@ require("floating-claude").setup({
     title = " Claude ",
     title_pos = "center",
     zindex = 60,
+    draggable = true,   -- drag it out of the way with the mouse; false leaves the button alone
   },
   auto = {
     minimize_on_diff = true,   -- minimize when an edit-approval diff opens
@@ -273,6 +274,17 @@ disarms them while moving windows itself, which is why launching Claude in the
 background does not immediately minimize it. `restore_on_enter` is also what
 makes the notification focusable: an unfocusable float never receives a click
 at all.
+
+The corner can also be dragged, by its body or its border, when it is sitting
+on something you need to read — the end of a file, usually. Neovim drags
+nothing but status lines and separators, so while the corner is up the plugin
+takes the left button: a press inside the corner picks it up, anywhere else is
+handed straight on, and a press and release that never moved is still a click
+that brings the float back. It stays where you drop it for the rest of the
+session, kept on screen if the editor shrinks. A global `<LeftMouse>`,
+`<LeftDrag>` or `<LeftRelease>` mapping of your own is set aside while the
+corner is up and put back when it goes; `notification.draggable = false` leaves
+the button alone entirely.
 
 ## Compatibility
 

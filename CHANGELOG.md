@@ -13,6 +13,14 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ### Added
 
+- The corner notification can be dragged with the mouse, by its body or its
+  border, off whatever it is covering — the bottom of a file, usually. It
+  stays where it is dropped for the rest of the session, a click that does not
+  move it still brings the float back, and clicks anywhere else are handed on
+  untouched. The plugin holds the left button only while the corner is up,
+  setting aside and then restoring any global mapping of your own on it.
+  `notification.draggable = false` turns it off.
+
 - `hide()`, `:FloatingClaudeHide` and a default normal-mode `<leader>aq`
   (`keymaps.hide`) to take Claude off the screen entirely — the float or the
   corner, whichever is up — while it keeps running. It comes back as the
