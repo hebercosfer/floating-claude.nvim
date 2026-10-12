@@ -115,6 +115,11 @@ function M.release()
   return true
 end
 
+--- Whether a press on the corner is still held down.
+function M.dragging()
+  return held ~= nil
+end
+
 local HANDLERS =
   { ["<LeftMouse>"] = M.press, ["<LeftDrag>"] = M.move, ["<LeftRelease>"] = M.release }
 
