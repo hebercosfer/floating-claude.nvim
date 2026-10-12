@@ -12,6 +12,9 @@ end
 cmd("FloatingClaudeMinimize", "minimize", "Collapse Claude into the corner notification")
 cmd("FloatingClaudeRestore", "restore", "Bring the Claude float back")
 cmd("FloatingClaudeToggle", "toggle_mini", "Toggle between the Claude float and the notification")
+cmd("FloatingClaudeHide", "hide", "Take Claude off the screen, float and notification both")
+
+require("floating-claude.keymaps").apply()
 
 -- The guided tour. `auto` runs it hands-free rather than asking you to click;
 -- `stop` ends one early.

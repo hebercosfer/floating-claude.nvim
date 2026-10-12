@@ -81,6 +81,12 @@ M.defaults = {
     -- leaving insert mode. Set to false to skip it. The default chord avoids
     -- Alt (swallowed by some terminals) and Claude's own keys.
     minimize = "<C-x><C-m>",
+    -- Normal-mode mapping, set globally, that takes Claude off the screen
+    -- entirely -- the float or the corner, whichever is up -- while it keeps
+    -- running. `:ClaudeCode` brings it back as the float, and it comes back as
+    -- the corner on its own once it is waiting on you. Set to false to skip
+    -- it; a mapping of your own on the same key is left alone.
+    hide = "<leader>aq",
   },
 
   -- Warn once per session when the installed claudecode.nvim / Claude Code
