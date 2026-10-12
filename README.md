@@ -27,7 +27,7 @@ out of your way on its own: when Claude proposes an edit, the float collapses
 into a small corner notification so the diff is visible, and it comes back the
 moment the diff closes.
 
-![Claude Code in a centered float; a diff opens and the float collapses into a corner notification that keeps reporting, and comes straight back once the diff closes; the corner is then dragged out of the way, hidden, and comes back when Claude is waiting](docs/demo.gif)
+https://github.com/user-attachments/assets/841ad723-f291-4ac7-b7fd-f6034bf92a98
 
 ## See it move
 
