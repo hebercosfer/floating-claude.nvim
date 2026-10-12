@@ -360,6 +360,78 @@ local function input_boundary(lines)
   return #lines + 1
 end
 
+-- Claude's own `/diff` opens a panel down the right-hand side of the screen,
+-- and every row above the input box -- blank ones included -- grows a `│` and a
+-- slice of the panel past it:
+--
+--   ● The float comes back with the diff gone.          │  src/a.lua +3 -1
+--                                                       │  @@ -1,4 +1,6 @@
+--   ✽ Boondoggling… (21s · ↓ 1.7k tokens)               │
+--   ──────────────────────────────────────────────────────────────────────────
+--
+-- Left in, nothing is blank any more, so the whole screen reads as one block;
+-- the status line no longer ends where its detail group closes; and prose
+-- wraps at the divider rather than at the rules, which stay full width.
+--
+-- A table has `│`s too, so a divider has to earn it: the same column on every
+-- row from the input box upwards, for a run of them, well in from the left
+-- edge, and with at least one of those rows blank on the left -- a table row
+-- never is, it has a `│` of its own at the margin.
+local PANEL_EDGE = "│"
+local PANEL_MIN_ROWS = 5
+local PANEL_MIN_COLUMN = 20
+
+-- What sits at display column `col` (0-based), and what comes before it.
+local function at_column(line, col)
+  return vim.fn.matchstr(line, [[\%]] .. (col + 1) .. [[v.]])
+end
+
+local function left_of(line, col)
+  return vim.fn.matchstr(line, [[^.\{-}\%]] .. (col + 1) .. [[v]])
+end
+
+-- The divider's display column and the first row it runs down from, or nil
+-- when no panel is open.
+local function find_panel(lines, boundary)
+  local anchor = lines[boundary - 1]
+  if not anchor then
+    return nil
+  end
+  local from = 1
+  while true do
+    local byte = anchor:find(PANEL_EDGE, from, true)
+    if not byte then
+      return nil
+    end
+    from = byte + #PANEL_EDGE
+    local col = vim.fn.strdisplaywidth(anchor:sub(1, byte - 1))
+    if col >= PANEL_MIN_COLUMN then
+      local top, blank_left = boundary, false
+      while top > 1 and at_column(lines[top - 1], col) == PANEL_EDGE do
+        top = top - 1
+        blank_left = blank_left or vim.trim(left_of(lines[top], col)) == ""
+      end
+      if boundary - top >= PANEL_MIN_ROWS and blank_left then
+        return col, top
+      end
+    end
+  end
+end
+
+-- The terminal's lines with any side panel cut away, the row of the input
+-- box, and the panel's column (nil with none open). Both scans start here.
+local function read_screen()
+  local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
+  local boundary = input_boundary(lines)
+  local panel, top = find_panel(lines, boundary)
+  if panel then
+    for i = top, boundary - 1 do
+      lines[i] = left_of(lines[i], panel)
+    end
+  end
+  return lines, boundary, panel
+end
+
 -- What the notification shows: the newest block of the transcript worth
 -- reading, cleaned up. "Newest" skips the furniture -- the live status line and
 -- the frozen end-of-turn marker both belong in the title now -- so what lands
@@ -374,13 +446,13 @@ function M.status_lines()
   end
 
   local opts = config.options.notification
-  local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
+  local lines, boundary, panel = read_screen()
   local function blank(i)
     return lines[i] == nil or clean(lines[i]) == ""
   end
 
-  local boundary = input_boundary(lines)
-  local column = wrap_column(lines)
+  -- With a panel open, Claude wraps its prose at the divider.
+  local column = panel or wrap_column(lines)
 
   local out, gaps, budget = {}, 0, opts.max_lines
   local floor = math.max(1, boundary - SEARCH_LIMIT)
@@ -557,8 +629,7 @@ function M.status()
     return out
   end
 
-  local lines = vim.api.nvim_buf_get_lines(state.buf, 0, -1, false)
-  local boundary = input_boundary(lines)
+  local lines, boundary = read_screen()
 
   for i = boundary - 1, math.max(1, boundary - 6), -1 do
     if is_rule(lines[i]) or is_box_top(lines[i]) then
