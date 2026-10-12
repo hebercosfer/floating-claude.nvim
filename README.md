@@ -51,7 +51,7 @@ early.
 - [coder/claudecode.nvim](https://github.com/coder/claudecode.nvim) — `main`,
   tested at [`2390c6e`](https://github.com/coder/claudecode.nvim/commit/2390c6e45c4789072c293ac69de051d169668b29)
   (v0.3.0 + 53, 2026-06-25); v0.2.0 is the floor
-- Claude Code CLI 2.1+ — tested at 2.1.238
+- Claude Code CLI 2.1+ — tested at 2.1.296
 
 Both are hard requirements, not suggestions: this plugin implements
 claudecode.nvim's terminal provider interface and reads Claude's state out of
@@ -302,7 +302,7 @@ is spawned; `:checkhealth floating-claude` reports what you actually have.
 | --------------- | ------- | -------------------------------- |
 | Neovim          | 0.10    | 0.10.4                           |
 | claudecode.nvim | 0.2.0   | `main` @ `2390c6e` (v0.3.0 + 53) |
-| Claude Code CLI | 2.1.0   | 2.1.238                          |
+| Claude Code CLI | 2.1.0   | 2.1.296                          |
 
 From claudecode.nvim we need `terminal.ensure_visible` — what lets a minimized
 Claude *stay* minimized while you resolve a diff — and the `claudecode.diff`
