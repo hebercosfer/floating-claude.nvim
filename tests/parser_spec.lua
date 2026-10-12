@@ -491,6 +491,90 @@ describe("parser", function()
     end)
   end)
 
+  -- Claude's own `/diff` opens a panel down the right of the screen, and every
+  -- row above the input box -- blank ones included -- grows a `│` and a slice
+  -- of the panel. Shaped on a live capture: the divider at column 93 of a 168
+  -- column terminal, the rules framing the input still drawn full width.
+  describe("with the /diff panel open", function()
+    local EDGE = 72
+    local WIDE_RULE = string.rep("─", 100)
+
+    local function panelled(left, right)
+      local out = {}
+      for i, text in ipairs(left) do
+        local pad = string.rep(" ", EDGE - vim.fn.strdisplaywidth(text))
+        table.insert(out, text .. pad .. "│" .. "  " .. (right[i] or ""))
+      end
+      vim.list_extend(out, { WIDE_RULE, "❯ ", WIDE_RULE })
+      return out
+    end
+
+    -- Long enough to reach the panel's edge, which is where Claude wrapped it.
+    local WRAPPED = {
+      "● The divider sits at the same column on every row above the input,",
+      "  which is what tells it apart from a table. Nothing else is touched.",
+    }
+
+    it("reads the live status line without the panel on the end of it", function()
+      buffer(panelled({
+        WRAPPED[1],
+        WRAPPED[2],
+        "",
+        "✽ Boondoggling… (21s · ↓ 1.7k tokens)",
+        "",
+      }, { "No changes this session", "", "", "", "" }))
+      local status = parser.status()
+      assert.is_true(status.working)
+      assert.equals("Boondoggling…", status.verb)
+      assert.equals("21s", status.elapsed)
+      assert.equals("↓1.7k", status.tokens)
+    end)
+
+    it("reads the finished turn's marker without the panel", function()
+      buffer(
+        panelled({ "● Done.", "", "✻ Cooked for 1m 40s", "", "", "" }, { "src/a.lua +3 -1" })
+      )
+      assert.equals("Cooked for 1m 40s", parser.status().done)
+    end)
+
+    it("keeps the panel out of the body, and still finds the gaps", function()
+      buffer(panelled({
+        "● An older paragraph.",
+        "",
+        WRAPPED[1],
+        WRAPPED[2],
+        "",
+        "",
+      }, { "src/a.lua +3 -1", "@@ -1,4 +1,6 @@", "-old", "+new", "", "" }))
+      config.setup({ notification = { body = "block", gaps = 0 } })
+      assert.same({
+        "● The divider sits at the same column on every row above the input, "
+          .. "which is what tells it apart from a table. Nothing else is touched.",
+      }, parser.status_lines())
+    end)
+
+    it("does not take a table for the panel", function()
+      buffer({
+        "● Compared:",
+        "",
+        "  ┌──────────────────────────┬────────┐",
+        "  │ predicate                │ cost   │",
+        "  ├──────────────────────────┼────────┤",
+        "  │ diff_visible             │ 0.1ms  │",
+        "  │ diff_pending             │ 0.1ms  │",
+        "  │ is_working               │ 0.2ms  │",
+        "  │ status_lines             │ 0.3ms  │",
+        "  │ first_sentence           │ 0.0ms  │",
+        RULE,
+        "❯ ",
+        RULE,
+      })
+      config.setup({ notification = { body = "block" } })
+      -- A crop at the cost column would take the timings with it.
+      assert.truthy(table.concat(parser.status_lines(), " "):find("0.0ms  │", 1, true))
+    end)
+  end)
+
   describe("diff_pending", function()
     local diff_buf
 
