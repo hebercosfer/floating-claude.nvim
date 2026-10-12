@@ -10,6 +10,9 @@ local M = {
   mini_buf = -1,
   mini_win = -1,
   mini_timer = nil,
+  -- Where the notification was last dragged to, as an editor row and column,
+  -- for the rest of the session. nil keeps it in the bottom-right corner.
+  mini_pos = nil,
   -- Renders since the notification opened, which is what drives the pulse on
   -- its marker glyphs. Counting renders rather than reading a clock keeps the
   -- animation deterministic, and stops it dead while the notification is down.
