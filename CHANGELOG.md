@@ -12,6 +12,13 @@ patches — is written out once, in the README's
 
 ## [Unreleased]
 
+## [0.1.2] - 2026-10-12
+
+Everything `main` shipped as [0.4.0](https://github.com/hebercosfer/floating-claude.nvim/blob/main/CHANGELOG.md),
+none of which needs Neovim 0.11. A patch release carrying features and a
+retarget, because this line cannot emit anything else — see
+[Versioning](README.md#versioning).
+
 ### Added
 
 - The corner notification can be dragged with the mouse, by its body or its
@@ -49,6 +56,12 @@ patches — is written out once, in the README's
 
 ### Changed
 
+- `:FloatingClaudeDemo` shows the new corner too: it is dragged aside, hidden,
+  and comes back where it was dropped once Claude is waiting. Interactively it
+  asks you to drag the corner and to hide it. One beat the new behaviour had
+  swallowed — the float's return after the diff, which is now instant — is
+  back on screen.
+
 - A diff now puts Claude back the way it found it. If the float was up when the
   diff opened, it comes back as soon as the diff closes, rather than waiting in
   the corner until Claude has finished the whole turn — in a turn with several
@@ -83,6 +96,12 @@ patches — is written out once, in the README's
   been reacted to, and minimizing the float straight back the first time it was
   asked for. The second attempt worked, which is what made it look like a
   timing quirk rather than a missed flag.
+
+### Compatibility
+
+- Neovim 0.10+, tested at 0.10.4 and nothing else
+- claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
+- Claude Code CLI 2.1.296; minimum 2.1.0
 
 ## [0.1.1] - 2026-08-21
 
@@ -235,6 +254,7 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.2...HEAD
+[0.1.2]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hebercosfer/floating-claude.nvim/releases/tag/v0.1.0
