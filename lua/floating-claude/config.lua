@@ -23,9 +23,9 @@ M.defaults = {
     -- through, so sampling slower than that makes a live turn look stuck. One
     -- refresh costs about 0.2ms.
     refresh_ms = 120,
-    -- How long each half of a marker's pulse lasts. A waiting notification
-    -- blinks its ❯ at this period and a running tool call its ⎿ at half of it,
-    -- so the two rhythms stay tellable apart. Set to false to hold both still.
+    -- Sets the pulse on a running tool call: its ⎿ flickers every
+    -- `pulse_ms / 2`. A waiting notification holds still whatever this is.
+    -- Set to false to hold the tool call still too.
     pulse_ms = 700,
     -- What the body shows: "sentence" for the opening sentence of the newest
     -- thing on screen, "block" for the whole paragraph. `max_lines` and `gaps`

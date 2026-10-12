@@ -241,9 +241,8 @@ function M.build()
         "With nothing running there is no activity to report, so the title goes back to the "
           .. "plain label and a line under the message says what Claude is waiting for, next to "
           .. "what the turn cost.",
-        "The `❯` blinks green at half the tool call's rhythm, so the two states are tellable "
-          .. "apart before you have read either. `notification.pulse_ms = false` holds both "
-          .. "still.",
+        "The `❯` holds still: nothing is going on, and the corner should look it. Only work "
+          .. "moves, so the two states are tellable apart before you have read either.",
       },
       enter = function()
         terminal.minimize()
