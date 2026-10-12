@@ -206,7 +206,11 @@ function M.start(opts)
     end
   end
 
-  watcher.start({ minimize = terminal.minimize, restore = terminal.restore })
+  watcher.start({
+    minimize = terminal.minimize,
+    restore = terminal.restore,
+    show = notification.show,
+  })
 
   M.tour.steps = script.build()
   M.tour.timer = uv.new_timer()

@@ -28,9 +28,19 @@ patches — is written out once, in the README's
   neither claudecode.nvim nor the CLI installed and come out the same way
   twice. The float, the notification, the watcher and the provider are all the
   real ones — the diff teardown even calls `provider.ensure_visible()` in
-  upstream's order, so the post-diff restore demonstrates the real
-  `restore_idle_ms` debounce. The tour borrows the plugin's defaults for its
+  upstream's order, so the post-diff restore is the real one. The tour borrows the plugin's defaults for its
   duration and puts your own settings back when it ends.
+
+### Changed
+
+- A diff now puts Claude back the way it found it. If the float was up when the
+  diff opened, it comes back as soon as the diff closes, rather than waiting in
+  the corner until Claude has finished the whole turn — in a turn with several
+  edits, it drops to the corner and comes back once per edit. A Claude that was
+  in the corner stays there until it is waiting on you, as before, and a hidden
+  one stays hidden.
+- A hidden Claude — neither the float nor the corner up — comes back as the
+  corner, not the full float, once it is waiting on you.
 
 ### Fixed
 
