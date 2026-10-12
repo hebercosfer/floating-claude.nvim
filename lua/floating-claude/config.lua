@@ -50,6 +50,11 @@ M.defaults = {
     title = " Claude ",
     title_pos = "center",
     zindex = 60,
+    -- Let the mouse drag the notification out of the way of what is under it.
+    -- It stays where you drop it for the rest of the session; a click that
+    -- does not move it still brings the float back. Set to false to leave the
+    -- left button alone.
+    draggable = true,
   },
 
   auto = {

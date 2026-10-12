@@ -2,6 +2,7 @@
 -- latest output while the big float is hidden.
 
 local config = require("floating-claude.config")
+local drag = require("floating-claude.drag")
 local highlights = require("floating-claude.highlights")
 local parser = require("floating-claude.parser")
 local state = require("floating-claude.state")
@@ -58,6 +59,7 @@ function M.hide()
   -- Start the next one on the bright half: a pulse that opens mid-blink reads
   -- as a glitch rather than as a rhythm.
   state.pulse = 0
+  drag.detach()
   if state.mini_win_valid() then
     vim.api.nvim_win_close(state.mini_win, true)
   end
@@ -381,8 +383,8 @@ local function render()
 
   local height = math.max(1, #rows)
 
-  local col = math.max(1, vim.o.columns - width - 2)
-  local row = math.max(1, vim.o.lines - height - 3)
+  -- The bottom-right corner, or wherever it was last dragged to.
+  local row, col = drag.place(height, width)
 
   local cfg = {
     relative = "editor",
@@ -427,6 +429,7 @@ function M.show()
   end
   local refresh_ms = config.options.notification.refresh_ms
   render()
+  drag.attach()
   stop_timer()
   state.mini_timer = uv.new_timer()
   state.mini_timer:start(
