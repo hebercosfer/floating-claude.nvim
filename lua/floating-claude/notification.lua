@@ -274,12 +274,11 @@ local MARKER = {
 }
 
 -- Markers that pulse, as { dim, bright } and how long each half lasts as a
--- multiple of pulse_ms. Waiting blinks slowly between its own green and a dim
--- tick; a running tool call flickers twice as fast, and between its own dim
--- grey and the amber the title wears while Claude works -- so the two rhythms
--- say which state you are in before you have read a word of either.
+-- multiple of pulse_ms. Only work moves: a running tool call flickers between
+-- its own dim grey and the amber the title wears while Claude works. Waiting
+-- is the absence of activity and holds still -- a blinking ❯ made the one
+-- quiet state look like the busiest.
 local PULSE = {
-  waiting = { "FloatingClaudeTick", "FloatingClaudeWaiting", 1 },
   tool = { "FloatingClaudeTool", "FloatingClaudeStatus", 0.5 },
 }
 

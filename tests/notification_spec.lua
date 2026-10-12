@@ -220,11 +220,9 @@ describe("notification", function()
       })
       notification.show()
       local painted = paint()
-      -- The glyph is its own mark so it can pulse without the words moving.
-      assert.equals("FloatingClaudeWaiting", painted[#painted - 1].hl_group)
-      assert.equals(0, painted[#painted - 1].col)
-      assert.equals(1 + #"❯", painted[#painted - 1].end_col)
+      -- One mark, glyph and words together: nothing on it moves.
       assert.equals("FloatingClaudeWaiting", painted[#painted].hl_group)
+      assert.equals(0, painted[#painted].col)
       assert.equals(#body()[#body()], painted[#painted].end_col)
 
       notification.hide()
@@ -353,17 +351,15 @@ describe("notification", function()
       return paint()[1].hl_group
     end
 
-    it("blinks the waiting glyph, and leaves the words beside it alone", function()
+    -- Waiting is the absence of activity, and a blinking ❯ said otherwise:
+    -- the one corner that should read as quiet looked like the busiest.
+    it("holds the waiting glyph still", function()
       terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
       every_render()
-      notification.show()
-      assert.equals("FloatingClaudeWaiting", glyph())
-      notification.show()
-      assert.equals("FloatingClaudeTick", glyph())
-      notification.show()
-      assert.equals("FloatingClaudeWaiting", glyph())
-      -- Whatever the glyph is doing, the rest of the line holds still.
-      assert.equals("FloatingClaudeWaiting", paint()[2].hl_group)
+      for _ = 1, 3 do
+        notification.show()
+        assert.equals("FloatingClaudeWaiting", glyph())
+      end
     end)
 
     it("flickers a running tool call between its own grey and the working amber", function()
@@ -410,14 +406,22 @@ describe("notification", function()
     end)
 
     it("starts on the bright half every time it opens", function()
-      terminal({ "  Welcome to Claude Code!", RULE, " > ", RULE })
+      terminal({
+        "● Running 3 shell commands · 3s…",
+        "  ⎿  $ git push -q",
+        "",
+        "✽ Infusing… (3s)",
+        RULE,
+        " > ",
+        RULE,
+      })
       every_render()
       notification.show()
       notification.show()
-      assert.equals("FloatingClaudeTick", glyph())
+      assert.equals("FloatingClaudeTool", glyph())
       notification.hide()
       notification.show()
-      assert.equals("FloatingClaudeWaiting", glyph())
+      assert.equals("FloatingClaudeStatus", glyph())
     end)
   end)
 
