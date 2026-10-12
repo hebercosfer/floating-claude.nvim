@@ -163,8 +163,11 @@ function M.start(opts)
     auto = opts.auto == true,
     index = 0,
     -- Handed back by stop(), whichever way the tour ends.
-    saved = { options = config.options, mouse = vim.o.mouse },
+    saved = { options = config.options, mouse = vim.o.mouse, mini_pos = state.mini_pos },
   }
+  -- The tour starts the corner in its corner, and puts back wherever you had
+  -- dragged yours.
+  state.mini_pos = nil
 
   -- The captions describe the defaults, so the tour runs on them.
   config.setup({})
@@ -256,6 +259,7 @@ function M.stop()
 
   config.options = tour.saved.options
   vim.o.mouse = tour.saved.mouse
+  state.mini_pos = tour.saved.mini_pos
 end
 
 return M
