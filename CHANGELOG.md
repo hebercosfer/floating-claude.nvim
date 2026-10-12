@@ -61,6 +61,14 @@ patches — is written out once, in the README's
 
 ### Fixed
 
+- The corner reads Claude correctly while its `/diff` panel is open. The panel
+  runs down the right of the screen and puts a `│` and a slice of itself on
+  every row above the input box, so no row was blank any more and the whole
+  screen read as one block, the title carried the panel's edge, and prose was
+  unwrapped at the full width rather than at the divider it really wraps at.
+  The panel is cut away before anything is read; a table, which has `│`s of
+  its own, is told apart by needing the same column on every row up from the
+  input box and at least one of them blank on the left.
 - Bringing the float back while a diff is open now works on the first try. The
   diff opens in its own tab, so `minimize_on_leave` collapsed the float before
   the poll loop ever saw the diff — which left the poll thinking no diff had
