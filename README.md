@@ -24,16 +24,17 @@ workflow for those who read (and write) the code.
 
 Claude Code opens in a centered float instead of a split — and, crucially, gets
 out of your way on its own: when Claude proposes an edit, the float collapses
-into a small corner notification so the diff is visible, and it comes back once
-Claude has settled and is waiting for you.
+into a small corner notification so the diff is visible, and it comes back the
+moment the diff closes.
 
-![Claude Code in a centered float; a diff opens and the float collapses into a corner notification that keeps reporting; it comes back once Claude goes idle](docs/demo.gif)
+![Claude Code in a centered float; a diff opens and the float collapses into a corner notification that keeps reporting, and comes straight back once the diff closes; the corner is then dragged out of the way, hidden, and comes back when Claude is waiting](docs/demo.gif)
 
 ## See it move
 
 That recording is `:FloatingClaudeDemo auto` running unattended — the float, the
-corner it collapses into, both shapes of the notification body, and an edit
-approval it gets out of the way for and comes back from.
+corner it collapses into, both shapes of the notification body, an edit
+approval it gets out of the way for and comes back from, and the corner dragged
+aside, hidden, and back when Claude is waiting.
 
 `:FloatingClaudeDemo` runs the same tour interactively, pausing to ask you to
 click the parts that are about clicking.
