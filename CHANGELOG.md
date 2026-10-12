@@ -13,6 +13,14 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ### Added
 
+- `hide()`, `:FloatingClaudeHide` and a default normal-mode `<leader>aq`
+  (`keymaps.hide`) to take Claude off the screen entirely — the float or the
+  corner, whichever is up — while it keeps running. It comes back as the
+  corner on its own once it is waiting on you, and `:ClaudeCode` brings back
+  the full float. Hidden during a diff stays hidden after it. The mapping is
+  skipped when the key already has a mapping of your own, and
+  `keymaps.hide = false` turns it off.
+
 - `:FloatingClaudeDemo`, a guided tour of the plugin: the float, the corner it
   collapses into, the two config shapes for the body, and an edit approval it
   gets out of the way for and comes back from. Interactive by default — it
