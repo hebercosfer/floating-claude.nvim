@@ -49,6 +49,15 @@ patches — is written out once, in the README's
   one stays hidden.
 - A hidden Claude — neither the float nor the corner up — comes back as the
   corner, not the full float, once it is waiting on you.
+- A notification waiting on you holds still. Its `❯` used to blink between
+  green and dim every `pulse_ms`, which made the one quiet state look like the
+  busiest; now only a running tool call's `⎿` pulses. `pulse_ms` keeps its
+  meaning for that flicker.
+
+### Removed
+
+- The `FloatingClaudeTick` highlight group, the dim half of the waiting blink.
+  Nothing uses it any more.
 
 ### Fixed
 

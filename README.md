@@ -106,7 +106,7 @@ require("floating-claude").setup({
     width = 64,
     max_height = 12,
     refresh_ms = 120,   -- how often the notification re-reads the terminal
-    pulse_ms = 700,     -- half-period of the marker pulse; false holds it still
+    pulse_ms = 700,     -- a running tool call's ⎿ flickers every pulse_ms / 2; false holds it still
     body = "sentence",  -- "sentence" (opening sentence) or "block" (paragraph)
     max_lines = 12,     -- hard cap on terminal lines tailed, in "block" mode
     gaps = 1,           -- blank separators the tail may cross, in "block" mode
@@ -159,7 +159,6 @@ scraped text arrives plain and there is nothing to copy. These groups are all
 | `FloatingClaudeBullet`  | `Title`          | Claude's `●` in front of a message      |
 | `FloatingClaudePrompt`  | `Comment`        | the echo of what you typed              |
 | `FloatingClaudeMore`    | `Comment`        | the `…` marking what did not fit        |
-| `FloatingClaudeTick`    | `NonText`        | the dim half of a pulsing marker        |
 
 ```lua
 -- e.g. the timer without your colourscheme's italic comments
@@ -233,24 +232,24 @@ that has only just started — that last one has no marker to add. Set `waiting 
 false` for the finished turn's marker on its own (`✓ Cooked for 1m 40s`), and
 nothing at all when there is no turn.
 
-Both states move, so a glance tells you which one you are in. Claude cycles its
-spinner glyph — `· ✢ * ✶ ✻ ✽` and back — about every 120ms, and the title passes
-that glyph straight through, which is why `refresh_ms` samples at the same rate:
-slower and a live turn looks stuck. The markers pulse on top of that, at two
-rhythms you can tell apart without reading them. A running tool call flickers
-its `⎿` between grey and the working amber every `pulse_ms / 2`; a waiting
-notification blinks its `❯` between green and dim every `pulse_ms`, twice as
-slow. Only the glyph moves — the words beside it would be unreadable if they
-blinked too — and a `⎿` left over from a tool call that has already finished
-holds still, because pulsing it would claim work that is not happening.
+Work moves and waiting holds still, so a glance tells you which one you are in.
+Claude cycles its spinner glyph — `· ✢ * ✶ ✻ ✽` and back — about every 120ms,
+and the title passes that glyph straight through, which is why `refresh_ms`
+samples at the same rate: slower and a live turn looks stuck. A running tool
+call flickers its `⎿` between grey and the working amber every `pulse_ms / 2`
+on top of that. Only the glyph moves — the words beside it would be unreadable
+if they blinked too — and a `⎿` left over from a tool call that has already
+finished holds still, because pulsing it would claim work that is not
+happening. So does the `❯` of a notification waiting on you: nothing is going
+on, and the corner should look it.
 
 ```
-waiting ❯          ██████······██████······
 running tool ⎿     ███···███···███···███···
+waiting ❯          ████████████████████████
 finished, idle     ························
 ```
 
-`pulse_ms = false` holds everything still. A refresh costs about 0.2ms, so the
+`pulse_ms = false` holds the tool call still too. A refresh costs about 0.2ms, so the
 default rate is roughly 0.2% of one core while the notification is up, and the
 pulse itself is one extmark write on top of that.
 
