@@ -1,11 +1,13 @@
 -- Version compatibility with the two moving targets underneath this plugin.
 --
 -- We sit between claudecode.nvim -- whose terminal provider interface we
--- implement -- and the Claude Code CLI, whose TUI we scrape (see parser.lua).
--- Neither is a stable API: a renamed diff buffer or a redrawn status line is
--- enough to stop the auto-minimize from tracking. So we pin the pair this
--- release is tested against, check it once when Claude is spawned, and say so
--- rather than degrading silently.
+-- implement -- and the Claude Code CLI, which we hear through its hooks (see
+-- hooks/) and still read on screen for the title's status line, and for
+-- everything when the hooks are unavailable (see parser.lua). Neither is a
+-- stable API: a renamed diff buffer or a redrawn status line is enough to stop
+-- the auto-minimize from tracking. So we pin the pair this release is tested
+-- against, check it once when Claude is spawned, and say so rather than
+-- degrading silently.
 
 local M = {}
 
@@ -26,6 +28,9 @@ M.minimum = {
   -- the live "✶ … 17s … (esc to interrupt)" status line above it. Older CLIs
   -- render a different prompt area and the heuristics stop tracking.
   claude_code = "2.1.0",
+  -- The first CLI verified to carry what the hooks listener reads: HTTP hooks,
+  -- PermissionRequest and MessageDisplay. Older ones get the screen reader.
+  hooks = "2.1.301",
 }
 
 --- "2.1.220 (Claude Code)" / "v0.3.0" -> { 2, 1, 220 }
@@ -169,6 +174,41 @@ function M.cli_version(cmd_string, timeout_ms)
     return nil
   end
   return parse_cli_output(res.stdout)
+end
+
+-- One answer per CLI binary per session: asking costs a process.
+local hooks_answers = {}
+
+--- Whether the CLI claudecode.nvim launches carries the hooks the listener
+--- reads, decided before the job starts -- the hooks go on its command line --
+--- so this blocks, briefly (`claude --version` answers in under 10ms). A
+--- version that cannot be read is a no: an older CLI handed hook types it does
+--- not know could print settings errors inside Claude.
+---@param cmd_string string|nil
+---@return boolean, string|nil
+function M.hooks_ready(cmd_string)
+  local bin = cli_binary(cmd_string or "claude") or ""
+  local answer = hooks_answers[bin]
+  if not answer then
+    local version = M.cli_version(cmd_string, 1000)
+    if not version then
+      -- Not remembered: a cold start can outlast the timeout, and the next
+      -- spawn deserves another try.
+      return false, "the Claude Code version could not be read"
+    elseif M.older(version, M.minimum.hooks) then
+      answer = {
+        false,
+        ("Claude Code %s is older than %s, the first with the hooks this plugin uses"):format(
+          version,
+          M.minimum.hooks
+        ),
+      }
+    else
+      answer = { true }
+    end
+    hooks_answers[bin] = answer
+  end
+  return answer[1], answer[2]
 end
 
 local function tested_line()
