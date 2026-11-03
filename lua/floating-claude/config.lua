@@ -57,13 +57,26 @@ M.defaults = {
     draggable = true,
   },
 
+  -- Learn what Claude is doing from the events Claude Code posts to a small
+  -- listener on 127.0.0.1, rather than by reading its screen. false goes back
+  -- to reading the screen for everything; the plugin also does that on its own
+  -- when the CLI is too old for these hooks. `keep` is how many of the latest
+  -- events `:FloatingClaudeEvents` can show you -- 0 keeps none.
+  hooks = { enabled = true, keep = 50 },
+
   auto = {
     -- Minimize the float when an edit-approval diff opens, so the diff -- which
     -- the float would otherwise cover -- is visible.
     minimize_on_diff = true,
-    -- Restore the float once Claude finishes and waits for input (but not while
-    -- a diff is up -- you are reviewing that).
-    restore_on_input = true,
+    -- What brings the float back from the corner (never while a diff is up --
+    -- you are reviewing that): "idle" when Claude finishes a turn or asks you
+    -- for something, "request" only when it asks you for something, false
+    -- never. true still means "idle".
+    restore_on_input = "idle",
+    -- What brings a hidden Claude back, as the corner: "request" when Claude
+    -- asks you for something -- a permission, a question, a plan to approve, or
+    -- a turn that failed -- "idle" also when it finishes a turn, false never.
+    show_hidden = "request",
     -- Minimize when focus leaves the float, so stepping away to your code
     -- collapses Claude to the corner instead of leaving it over your work.
     -- Any focus change counts: clicking another window, or moving there with
@@ -89,9 +102,14 @@ M.defaults = {
     -- Normal-mode mapping, set globally, that takes Claude off the screen
     -- entirely -- the float or the corner, whichever is up -- while it keeps
     -- running. `:ClaudeCode` brings it back as the float, and it comes back as
-    -- the corner on its own once it is waiting on you. Set to false to skip
-    -- it; a mapping of your own on the same key is left alone.
+    -- the corner on its own when Claude asks you for something (see
+    -- auto.show_hidden). Set to false to skip it; a mapping of your own on the
+    -- same key is left alone.
     hide = "<leader>aq",
+    -- Normal-mode mapping, set globally, that opens the latest events the
+    -- plugin heard from Claude in a buffer, so you can see exactly what it
+    -- listens to. Same rules as `hide`.
+    events = "<leader>ae",
   },
 
   -- Warn once per session when the installed claudecode.nvim / Claude Code
@@ -103,8 +121,20 @@ M.defaults = {
 
 M.options = vim.deepcopy(M.defaults)
 
+-- The shorthands setup() accepts, spelled out: `hooks = false` (or true) for
+-- the table, and the old boolean `restore_on_input = true` for "idle".
+local function normalize(options)
+  if type(options.hooks) == "boolean" then
+    options.hooks = { enabled = options.hooks, keep = M.defaults.hooks.keep }
+  end
+  if options.auto.restore_on_input == true then
+    options.auto.restore_on_input = "idle"
+  end
+  return options
+end
+
 function M.setup(opts)
-  M.options = vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {})
+  M.options = normalize(vim.tbl_deep_extend("force", vim.deepcopy(M.defaults), opts or {}))
   return M.options
 end
 
