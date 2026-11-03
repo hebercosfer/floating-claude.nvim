@@ -132,6 +132,54 @@ describe("compat", function()
     end)
   end)
 
+  describe("hooks_ready", function()
+    -- A stand-in CLI that also counts how often it was asked.
+    local function counting_cli(output)
+      local count = vim.fn.tempname()
+      local path = vim.fn.tempname()
+      vim.fn.writefile({
+        "#!/bin/sh",
+        ("echo x >> '%s'"):format(count),
+        ("echo '%s'"):format(output),
+      }, path)
+      vim.fn.setfperm(path, "rwxr-xr-x")
+      return path, function()
+        return #vim.fn.readfile(count)
+      end
+    end
+
+    it("allows a CLI with the hooks, asking it once", function()
+      local fresh = fresh_compat()
+      local cli, asked = counting_cli("2.1.317 (Claude Code)")
+      assert.same({ true, nil }, { fresh.hooks_ready(cli) })
+      assert.same({ true, nil }, { fresh.hooks_ready(cli .. " --resume") })
+      assert.equals(1, asked())
+    end)
+
+    it("says why an older CLI reads the screen instead", function()
+      local ok, reason = fresh_compat().hooks_ready(stub_cli("2.1.296 (Claude Code)"))
+      assert.is_false(ok)
+      assert.equals(
+        "Claude Code 2.1.296 is older than 2.1.301, the first with the hooks this plugin uses",
+        reason
+      )
+    end)
+
+    it("asks again after a version it could not read", function()
+      local fresh = fresh_compat()
+      local cli = stub_cli("boom", 1)
+      assert.is_false((fresh.hooks_ready(cli)))
+      vim.fn.writefile({ "#!/bin/sh", "echo '2.1.317 (Claude Code)'" }, cli)
+      assert.is_true((fresh.hooks_ready(cli)))
+    end)
+
+    it("does not guess when the version cannot be read", function()
+      local ok, reason = fresh_compat().hooks_ready("/nonexistent/claude")
+      assert.is_false(ok)
+      assert.equals("the Claude Code version could not be read", reason)
+    end)
+  end)
+
   describe("check", function()
     local notified
 
