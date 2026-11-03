@@ -67,4 +67,30 @@ function M.mode()
   return "hidden"
 end
 
+-- Who wants to hear when Claude moves between its faces, by name, so a module
+-- loaded twice (the specs do that) replaces its own entry instead of adding a
+-- second. And the face last announced, so a move that changed nothing stays
+-- quiet.
+M.subscribers = {}
+M.announced = nil
+
+---@param name string
+---@param fn fun(mode: "float"|"corner"|"hidden")
+function M.subscribe(name, fn)
+  M.subscribers[name] = fn
+end
+
+--- Announce the face Claude is showing now, if it is not the one announced
+--- last. The window layer calls this after every move it makes.
+function M.changed()
+  local mode = M.mode()
+  if mode == M.announced then
+    return
+  end
+  M.announced = mode
+  for _, fn in pairs(M.subscribers) do
+    fn(mode)
+  end
+end
+
 return M
