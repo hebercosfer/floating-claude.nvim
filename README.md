@@ -62,8 +62,77 @@ not working. See [Compatibility](#compatibility).
 
 ## Installation
 
-With [lazy.nvim](https://github.com/folke/lazy.nvim), as a dependency of
-claudecode.nvim:
+floating-claude sets claudecode.nvim up for you. With
+[lazy.nvim](https://github.com/folke/lazy.nvim):
+
+```lua
+{
+  "hebercosfer/floating-claude.nvim",
+  dependencies = { "coder/claudecode.nvim" },
+  opts = {},
+}
+```
+
+That is all it takes. `setup()` sets claudecode.nvim up with this plugin as its
+terminal and each diff in a full-screen tab of its own — the float minimizes to
+the corner when a diff opens, so the tab is just old | proposed — and maps
+claudecode.nvim's commands to [the keys its own README suggests](#keys).
+claudecode.nvim's options go under `claudecode`, on top of those:
+
+```lua
+opts = {
+  claudecode = {
+    terminal_cmd = "~/.claude/local/claude",
+    diff_opts = { layout = "horizontal" },
+  },
+},
+```
+
+### Keys
+
+| Key          | Mode              | Runs                                          |
+| ------------ | ----------------- | --------------------------------------------- |
+| `<leader>ac` | normal            | `:ClaudeCode` — open or close Claude          |
+| `<leader>af` | normal            | `:ClaudeCodeFocus`                            |
+| `<leader>ar` | normal            | `:ClaudeCode --resume`                        |
+| `<leader>aC` | normal            | `:ClaudeCode --continue`                      |
+| `<leader>am` | normal            | `:ClaudeCodeSelectModel`                      |
+| `<leader>ab` | normal            | `:ClaudeCodeAdd %` — add the current buffer   |
+| `<leader>as` | visual            | `:ClaudeCodeSend` — send the selection        |
+| `<leader>as` | normal, file tree | `:ClaudeCodeTreeAdd` — add the file           |
+| `<leader>aa` | normal            | `:ClaudeCodeDiffAccept`                       |
+| `<leader>ad` | normal            | `:ClaudeCodeDiffDeny`                         |
+
+The file trees are NvimTree, neo-tree, oil, mini.files, netrw and the snacks
+explorer. floating-claude's own `<leader>aq` (hide), `<leader>ae` (events) and
+`<C-x><C-m>` (minimize, inside the float) live under
+[`keymaps`](#configuration).
+
+`keys` changes that list with lazy.nvim-style entries — any key, any command or
+function, in any `mode`:
+
+```lua
+opts = {
+  keys = {
+    -- On a default's key and mode: replaces it.
+    { "<leader>ac", "<cmd>ClaudeCodeFocus<cr>", desc = "Focus Claude" },
+    -- rhs false: drops it.
+    { "<leader>aa", false },
+    -- Anything else: added.
+    { "<leader>an", function() require("floating-claude").toggle_mini() end, desc = "Minimize Claude" },
+  },
+},
+```
+
+An entry with `ft = { … }` is mapped only in buffers of those file types, and
+stands in for the default file-tree entry on its key. `defaults = false` in the
+list starts from nothing instead; `keys = false` maps nothing. A key you have
+mapped yourself is never taken over.
+
+### claudecode.nvim as the plugin you set up
+
+The other way round still works: claudecode.nvim's own spec, with this plugin
+as its dependency and its provider passed in.
 
 ```lua
 {
@@ -88,8 +157,11 @@ claudecode.nvim:
 }
 ```
 
-Calling `require("floating-claude").setup()` is optional — it only changes the
-defaults below.
+floating-claude's `setup()` is optional then: it changes the defaults below and
+maps the keys above (`keys = false` maps none). It never sets claudecode.nvim up
+a second time — not when claudecode.nvim's own lazy.nvim spec has `opts` or
+`config`, and not when it is set up already. Outside lazy.nvim, set
+claudecode.nvim up first, or pass `claudecode = false`.
 
 ## Configuration
 
@@ -155,6 +227,12 @@ require("floating-claude").setup({
     -- Claude sent it. Same rules as `hide`.
     events = "<leader>ae",
   },
+  -- Mappings for claudecode.nvim's commands: true for the list under "Keys",
+  -- a list of entries to change it, false for none.
+  keys = true,
+  -- claudecode.nvim's own options, passed to its setup() over the provider
+  -- and diff options the float needs. false leaves claudecode.nvim to you.
+  claudecode = {},
   -- Warn once per session when claudecode.nvim / Claude Code are older than
   -- the pair this plugin is built against. Set to false to silence.
   version_check = true,
@@ -205,17 +283,17 @@ Hiding leaves Claude running with neither window up. It comes back as the
 corner on its own when Claude asks you for something — a permission, a
 question, a plan to approve, a turn that failed — and, with
 `auto.show_hidden = "idle"`, when a turn simply finishes too. `:ClaudeCode` — the
-`<leader>ac` in claudecode.nvim's example config — brings back the full float
+`<leader>ac` among the [default keys](#keys) — brings back the full float
 whenever you want it. `<leader>aq` is mapped in normal mode only: inside the
 float your keys go to Claude, so step out with `<C-\><C-n>` first, or minimize
 with `<C-x><C-m>` and hide from there.
 
-Example keymap:
+Any of these can go on a key of your own through [`keys`](#keys):
 
 ```lua
-vim.keymap.set("n", "<leader>an", function()
-  require("floating-claude").toggle_mini()
-end, { desc = "Minimize Claude to notification" })
+keys = {
+  { "<leader>an", function() require("floating-claude").toggle_mini() end, desc = "Minimize Claude" },
+},
 ```
 
 ## How the auto-minimize works
@@ -495,6 +573,7 @@ than that Neovim moved on.
 | `parser.lua`        | Scraping Claude's state out of the terminal buffer      |
 | `state.lua`         | Shared buffer/window handles                            |
 | `config.lua`        | Defaults and `setup()`                                  |
+| `keys.lua`          | The keys `setup()` maps to claudecode.nvim's commands   |
 | `compat.lua`        | Supported claudecode.nvim / Claude Code versions        |
 | `version.lua`       | This plugin's own version                               |
 | `tests/`            | plenary specs and their minimal init                    |
