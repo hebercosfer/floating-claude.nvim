@@ -85,6 +85,31 @@ function M.check()
       compat.minimum.claude_code
     )
   )
+
+  -- How Claude is heard ---------------------------------------------------------
+  health.start("floating-claude.nvim: hooks")
+  local info = require("floating-claude.hooks.session").info()
+  if not require("floating-claude.state").buf_valid() then
+    health.info("Claude Code is not running")
+  elseif info.active and info.port then
+    local listener_received, answered = 0, false
+    require("floating-claude.hooks.session").log(function(log)
+      listener_received, answered = log and log.received or 0, true
+    end)
+    vim.wait(500, function()
+      return answered
+    end, 10)
+    health.ok(
+      ("reading Claude through its hooks on 127.0.0.1:%d; %d events received (:FloatingClaudeEvents shows them)"):format(
+        info.port,
+        listener_received
+      )
+    )
+  elseif info.active then
+    health.info("hearing the tour's scripted events")
+  else
+    health.warn(("reading Claude's screen: %s"):format(info.reason or "no reason given"))
+  end
 end
 
 return M
