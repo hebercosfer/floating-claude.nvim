@@ -3,12 +3,24 @@
 
 local config = require("floating-claude.config")
 local notification = require("floating-claude.notification")
+local session = require("floating-claude.hooks.session")
 local state = require("floating-claude.state")
 local watcher = require("floating-claude.watcher")
 
 local M = {}
 
 local group = vim.api.nvim_create_augroup("FloatingClaudeFocusFloat", { clear = false })
+
+-- The plugin announces its own moves; :q, <C-w>c or :only on the float are
+-- moves too, and a listener left believing Claude is maximized would never
+-- bring a hidden Claude back. state.changed() stays quiet when nothing moved.
+vim.api.nvim_create_autocmd("WinClosed", {
+  group = vim.api.nvim_create_augroup("FloatingClaudeAnnounce", { clear = true }),
+  desc = "Announce where Claude is once one of its windows closes",
+  callback = function()
+    vim.schedule(state.changed)
+  end,
+})
 
 --- Run `fn` with the focus autocmds disarmed.
 ---
@@ -17,11 +29,14 @@ local group = vim.api.nvim_create_augroup("FloatingClaudeFocusFloat", { clear = 
 --- and hands focus straight back when focus=false, which would minimize Claude
 --- the instant it launched, and minimize() leaves the float on its way out,
 --- which would re-enter its own handler.
+---
+--- The move is also announced once, where it ends (state.batch), rather than
+--- step by step.
 ---@param fn fun()
 local function quietly(fn)
   local was = state.suppress_auto
   state.suppress_auto = true
-  local ok, err = pcall(fn)
+  local ok, err = pcall(state.batch, fn)
   state.suppress_auto = was
   if not ok then
     error(err, 0)
@@ -80,7 +95,7 @@ local function resolve(value, total)
   return math.min(math.floor(value), total)
 end
 
-function M.open_window()
+local function open_float()
   -- Bringing the full float back always dismisses the notification.
   notification.hide()
 
@@ -117,17 +132,33 @@ function M.open_window()
   return buf, win
 end
 
+-- Announced once, as the float: not the "hidden" it passes through after the
+-- corner closes.
+function M.open_window()
+  local buf, win
+  state.batch(function()
+    buf, win = open_float()
+  end)
+  return buf, win
+end
+
 function M.hide_window()
   if state.win_valid() then
     vim.api.nvim_win_hide(state.win)
   end
   state.win = -1
+  state.changed()
 end
 
-function M.focus_window()
+--- `opts.insert = false` lands in normal mode: what an automatic restore does,
+--- so keys you were typing elsewhere cannot answer Claude's dialog.
+---@param opts { insert: boolean|nil }|nil
+function M.focus_window(opts)
   if state.win_valid() then
     vim.api.nvim_set_current_win(state.win)
-    vim.cmd("startinsert")
+    if not (opts and opts.insert == false) then
+      vim.cmd("startinsert")
+    end
   end
 end
 
@@ -146,11 +177,12 @@ function M.minimize()
 end
 
 -- Bring the full float back (also dismisses the notification).
-function M.restore()
+---@param opts { insert: boolean|nil }|nil
+function M.restore(opts)
   quietly(function()
     if state.buf_valid() then
       M.open_window()
-      M.focus_window()
+      M.focus_window(opts)
     else
       notification.hide()
     end
@@ -205,6 +237,9 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
   else
     cmd_arg = { cmd_string }
   end
+  -- Heard through its hooks, Claude starts with `--settings <file>` pointing
+  -- them at the plugin's listener; otherwise the command is left as it is.
+  cmd_arg = session.prepare(cmd_arg, cmd_string)
 
   state.jobid = vim.fn.termopen(cmd_arg, {
     env = env_table,
@@ -215,6 +250,9 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
           return
         end
         watcher.stop()
+        -- Only now: Claude acts on what its hooks reply, so the port stays
+        -- ours for as long as Claude runs.
+        session.stop()
         notification.hide()
         if state.win_valid() and (not effective_config or effective_config.auto_close ~= false) then
           vim.api.nvim_win_close(state.win, true)
@@ -231,6 +269,7 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
 
   if not state.jobid or state.jobid <= 0 then
     vim.notify("Failed to open Claude floating terminal.", vim.log.levels.ERROR)
+    session.stop()
     if state.win_valid() then
       vim.api.nvim_win_close(state.win, true)
     end
@@ -248,7 +287,27 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
     end, { buffer = state.buf, desc = "Minimize Claude to a corner notification" })
   end
 
-  watcher.start({ minimize = M.minimize, restore = M.restore, show = notification.show })
+  -- Restores the plugin makes on its own -- a request, a finished turn, a diff
+  -- resolved -- leave insert mode to you.
+  local function restore_quietly()
+    M.restore({ insert = false })
+  end
+  local handlers = { minimize = M.minimize, restore = restore_quietly, show = notification.show }
+  if session.active() then
+    -- Busy and idle come from Claude's events; only diffs need watching, and
+    -- only when windows change. Should the events never arrive after all, the
+    -- session falls back to the screen poll.
+    session.attach({
+      restore = restore_quietly,
+      show = notification.show,
+      fallback = function()
+        watcher.start(handlers)
+      end,
+    })
+    watcher.start_diffs(handlers)
+  else
+    watcher.start(handlers)
+  end
 
   -- Handing focus back is our own move, not the user turning away: without the
   -- guard, launching with focus=false would minimize Claude on the spot.
@@ -264,13 +323,21 @@ end
 
 function M.close()
   watcher.stop()
-  notification.hide()
-  if state.win_valid() then
-    vim.api.nvim_win_close(state.win, true)
-  end
+  -- Our own move: unguarded, the float's WinLeave would schedule a minimize
+  -- that lands on whatever float is up by then -- the next Claude's.
+  quietly(function()
+    notification.hide()
+    if state.win_valid() then
+      vim.api.nvim_win_close(state.win, true)
+    end
+  end)
   if state.jobid and state.jobid > 0 then
     vim.fn.jobstop(state.jobid)
+    -- The listener goes only once Claude has: on_exit will not do it for a
+    -- job this forgets below.
+    vim.fn.jobwait({ state.jobid }, 2000)
   end
+  session.stop()
   state.buf, state.win, state.jobid = -1, -1, -1
 end
 

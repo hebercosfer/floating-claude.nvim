@@ -75,14 +75,35 @@ M.subscribers = {}
 M.announced = nil
 
 ---@param name string
----@param fn fun(mode: "float"|"corner"|"hidden")
+---@param fn fun(mode: "float"|"corner"|"hidden")|nil nil unsubscribes
 function M.subscribe(name, fn)
   M.subscribers[name] = fn
+end
+
+-- Moves in progress inside batch(). A move made of steps -- minimize closes
+-- the float, then opens the corner -- must announce where it ended, not the
+-- "hidden" it passed through: the session reads float -> corner as "you saw
+-- that request in the float".
+M.batching = 0
+
+--- Run `fn` with announcements held, then announce once.
+---@param fn fun()
+function M.batch(fn)
+  M.batching = M.batching + 1
+  local ok, err = pcall(fn)
+  M.batching = M.batching - 1
+  M.changed()
+  if not ok then
+    error(err, 0)
+  end
 end
 
 --- Announce the face Claude is showing now, if it is not the one announced
 --- last. The window layer calls this after every move it makes.
 function M.changed()
+  if M.batching > 0 then
+    return
+  end
   local mode = M.mode()
   if mode == M.announced then
     return
