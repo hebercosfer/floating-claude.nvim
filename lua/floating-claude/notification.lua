@@ -71,6 +71,7 @@ function M.hide()
     vim.api.nvim_win_close(state.mini_win, true)
   end
   state.mini_win = -1
+  state.changed()
 end
 
 -- Truncate to `cells` display columns.
@@ -541,6 +542,7 @@ function M.show()
   drag.attach()
   stop_timer()
   sync_timer()
+  state.changed()
   return true
 end
 
