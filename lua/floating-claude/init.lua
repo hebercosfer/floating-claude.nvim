@@ -47,6 +47,12 @@ function M.toggle_mini()
   require("floating-claude.terminal").toggle_mini()
 end
 
+--- Open the latest events the plugin heard from Claude, as Claude sent them,
+--- in a buffer: what it listens to, where, and what it keeps.
+function M.events()
+  require("floating-claude.events_view").open()
+end
+
 --- Whether Claude Code is currently running in the float.
 function M.is_running()
   return require("floating-claude.state").buf_valid()
