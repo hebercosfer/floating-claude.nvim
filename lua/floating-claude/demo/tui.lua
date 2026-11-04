@@ -13,8 +13,24 @@
 -- column is what made the corner read ragged. So the transcript is wrapped here
 -- at the float's real width -- the same width as the rules, which is where the
 -- parser goes looking for it.
+--
+-- A real Claude is heard through its hooks as well, so the stand-in posts the
+-- matching event next to each thing it paints -- a prompt, a paragraph, a tool
+-- call, a finished turn, a question -- straight into the session the tour
+-- runs. The corner takes its words from those; the screen is read only for
+-- the live status line, as with the real thing.
 
+local record = require("floating-claude.hooks.record")
+local session = require("floating-claude.hooks.session")
 local state = require("floating-claude.state")
+
+-- Post an event the way the listener would hand one over.
+local function post(rec)
+  if session.active() then
+    rec.at = record.now_ms()
+    session.inject(rec)
+  end
+end
 
 ---@type uv
 local uv = vim.uv
@@ -104,11 +120,25 @@ end
 --- The echo of your own prompt, which is where one turn begins.
 function M.prompt(text)
   table.insert(M.blocks, block("❯", text))
+  post({ event = "UserPromptSubmit", prompt = text, synthetic = false })
 end
 
 --- A paragraph of Claude's prose.
 function M.say(text)
   table.insert(M.blocks, block("●", text))
+  post({ event = "MessageDisplay", delta = text, final = false })
+end
+
+--- Claude asking you something: no spinner while the question is up, and the
+--- request a real one posts the moment its dialog appears.
+function M.ask(question)
+  M.work = nil
+  table.insert(M.blocks, block("●", question))
+  post({
+    event = "PermissionRequest",
+    tool_name = "AskUserQuestion",
+    tool_input = { questions = { { question = question } } },
+  })
 end
 
 --- A tool call: the bulleted header naming what is running, and the result
@@ -118,6 +148,9 @@ function M.tool(header, result)
   local lines = block("●", header)
   table.insert(lines, "  ⎿  " .. result)
   table.insert(M.blocks, lines)
+  local call = { tool_name = "Bash", tool_input = { description = header, command = result } }
+  post(vim.tbl_extend("force", { event = "PreToolUse" }, call))
+  post(vim.tbl_extend("force", { event = "PostToolUse" }, call))
 end
 
 --- Start a turn. `verb` is the gerund Claude puts next to its spinner.
@@ -142,6 +175,7 @@ function M.finish(spent, summary)
   if summary then
     table.insert(M.blocks, block("●", summary))
   end
+  post({ event = "Stop", message = summary })
 end
 
 --- Type into the input box, a character every TYPE_MS.
