@@ -18,6 +18,7 @@ local diff = require("floating-claude.demo.diff")
 local highlights = require("floating-claude.highlights")
 local notification = require("floating-claude.notification")
 local script = require("floating-claude.demo.script")
+local session = require("floating-claude.hooks.session")
 local state = require("floating-claude.state")
 local terminal = require("floating-claude.terminal")
 local tui = require("floating-claude.demo.tui")
@@ -171,6 +172,9 @@ function M.start(opts)
 
   -- The captions describe the defaults, so the tour runs on them.
   config.setup({})
+  -- Heard the way a real Claude is: through events, which the stand-in posts
+  -- (demo/tui.lua). No listener is started; nothing is listening on a port.
+  session.start_scripted()
   -- Half the tour is things to click, and a click reaches a floating window
   -- only when the mouse is enabled at all.
   if not vim.o.mouse:find("[an]") then
@@ -209,7 +213,12 @@ function M.start(opts)
     end
   end
 
-  watcher.start({
+  session.attach({
+    restore = terminal.restore,
+    show = notification.show,
+    fallback = function() end,
+  })
+  watcher.start_diffs({
     minimize = terminal.minimize,
     restore = terminal.restore,
     show = notification.show,
@@ -247,6 +256,7 @@ function M.stop()
     pcall(tour.beat.exit)
   end
   watcher.stop()
+  session.stop()
   diff.close()
   caption.hide()
   notification.hide()
