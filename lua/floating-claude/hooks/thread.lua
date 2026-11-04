@@ -12,9 +12,10 @@
 --   * the transparency log the events view shows -- the newest `keep` events
 --     as Claude sent them, long values cut.
 --
--- What reaches the main loop depends on the window mode the main loop last
--- set (record.forwarded): nothing while maximized, everything in the corner,
--- only what could bring Claude back while hidden.
+-- Every record reaches the main loop as it arrives, whatever the window mode:
+-- the corner must be current the moment it opens, so nothing waits for it.
+-- The mode the main loop sets only says when to replay the turn -- on entering
+-- the corner, where the session settles the state against the screen.
 --
 -- Started by listener.lua with package.path pointing at the plugin's lua/
 -- directory: a thread's Lua state cannot find plugin modules otherwise.
@@ -33,12 +34,11 @@ local DECODE = { luanil = { object = true } }
 ---@param write_fd integer The pipe end frames to the main loop go to.
 ---@param read_fd integer The pipe end control frames come from.
 ---@param token string The session's token; anything without it gets a 403.
----@param opts_json string { keep: integer, show_hidden: "request"|"idle"|false }
+---@param opts_json string { keep: integer, idle_ms: integer|nil, max_connections: integer|nil }
 function M.run(write_fd, read_fd, token, opts_json)
   local uv = vim.uv
   local opts = vim.json.decode(opts_json, DECODE)
   local keep = opts.keep or 50
-  local show_hidden = opts.show_hidden or false ---@type string|false
   -- Any local user can reach 127.0.0.1, token or not. Claude's hooks connect,
   -- send a few hundred bytes at once and are answered within milliseconds, so
   -- a connection that goes quiet, or one too many, is not Claude's.
@@ -94,12 +94,8 @@ function M.run(write_fd, read_fd, token, opts_json)
       while #ring > record.RING_MAX do
         table.remove(ring, 1)
       end
-      if record.forwarded(rec, mode, show_hidden) then
-        send("record", vim.json.encode(rec))
-        fate = "forwarded"
-      else
-        fate = "kept"
-      end
+      send("record", vim.json.encode(rec))
+      fate = "forwarded"
     end
     note({
       at = at,
@@ -212,8 +208,6 @@ function M.run(write_fd, read_fd, token, opts_json)
         if mode == "corner" and was ~= "corner" then
           send("ring", vim.json.encode({ records = ring, received = received }))
         end
-      elseif f.kind == "show_hidden" then
-        show_hidden = f.payload ~= "false" and f.payload or false
       elseif f.kind == "log" then
         send("log", vim.json.encode({ received = received, rejected = rejected, entries = log }))
       elseif f.kind == "stop" then

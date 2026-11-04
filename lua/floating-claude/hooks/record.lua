@@ -140,25 +140,4 @@ function M.compact(event, at)
   return r
 end
 
---- Whether the main loop should hear about a record, given where Claude is.
---- Maximized it hears nothing; in the corner, everything; hidden, only what
---- could bring it back -- requests, and with show_hidden = "idle" a finished
---- turn, plus the prompts that cancel one.
----@param rec floating_claude.Record
----@param mode "float"|"corner"|"hidden"
----@param show_hidden "request"|"idle"|false
----@return boolean
-function M.forwarded(rec, mode, show_hidden)
-  if mode == "corner" then
-    return true
-  end
-  if mode ~= "hidden" or not show_hidden then
-    return false
-  end
-  if M.REQUEST[rec.event] then
-    return true
-  end
-  return show_hidden == "idle" and (rec.event == "Stop" or rec.event == "UserPromptSubmit")
-end
-
 return M
