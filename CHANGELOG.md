@@ -11,6 +11,44 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ## [Unreleased]
 
+Claude is heard through its own events instead of read off its screen. The
+corner's words no longer come from scraping the TUI, so box lines, tool traces
+and the `/diff` panel have nowhere to leak in from, and a stuck "working" has
+no status-line misread to come from.
+
+### Added
+
+- Claude Code is started with `--settings <file>`, registering HTTP hooks that
+  post its lifecycle events to a listener the plugin runs on `127.0.0.1`, on a
+  thread of its own. The corner takes its words from those events: your prompt,
+  the tool running, the opening sentence of what Claude said, the question a
+  request puts to you, a failed turn in the new `FloatingClaudeError`. The
+  screen is still read for the title's live status line, and as the safety net
+  for interrupts, which fire no event. Needs Claude Code 2.1.301 or newer; an
+  older CLI, `hooks = false`, a `claude` command with its own `--settings`, or
+  hooks that never arrive fall back to reading the screen.
+- `:FloatingClaudeEvents` and `<leader>ae` (`keymaps.events`) open the latest
+  events the plugin heard, as Claude sent them, so you can see what it listens
+  to. `hooks = { keep = 0 }` keeps none.
+- `auto.show_hidden` chooses what brings a hidden Claude back as the corner.
+- A "hooks" section in `:checkhealth floating-claude` says how Claude is heard,
+  and why when it is not.
+
+### Changed
+
+- A hidden Claude now comes back only when it asks you for something — a
+  permission, a question, a plan to approve, a turn that failed — not every time
+  a turn ends. `auto.show_hidden = "idle"` brings back the old behaviour.
+- `auto.restore_on_input` takes `"idle"` (the default, as before: a finished
+  turn or a request), `"request"` (requests only) or `false`; `true` still means
+  `"idle"`. Through the hooks a request restores at once, and a finished turn
+  after `restore_idle_ms`.
+- Heard through its hooks, Claude is no longer polled: the corner redraws on
+  events and runs its timer only while Claude works, and diffs are followed
+  through window events. Nothing reads the screen while the float is up.
+- The guided tour runs on the hooks path, and a hidden Claude in it comes back
+  with a question rather than a finished turn.
+
 ## [0.4.0] - 2026-10-12
 
 Claude gets out of the way more precisely and comes back to where it was. A
