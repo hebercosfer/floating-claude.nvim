@@ -48,7 +48,11 @@ jobs:
       # barely matters -- but it is this line's runtime for the same reason as
       # the job below, and it means compat.lua is at least parsed by the Neovim
       # this branch ships for.
+      #
+      # TMPDIR on /home/runner's filesystem -- see the note in ci.yml.
       - uses: rhysd/action-setup-vim@v1
+        env:
+          TMPDIR: ${{ runner.temp }}
         with:
           neovim: true
           version: v0.10.4
@@ -140,7 +144,10 @@ jobs:
           ref: main
           path: .tests/claudecode.nvim
 
+      # TMPDIR on /home/runner's filesystem -- see the note in ci.yml.
       - uses: rhysd/action-setup-vim@v1
+        env:
+          TMPDIR: ${{ runner.temp }}
         with:
           neovim: true
           version: ${{ matrix.neovim }}
