@@ -119,6 +119,25 @@ M.defaults = {
     events = "<leader>ae",
   },
 
+  -- Normal- and visual-mode mappings for claudecode.nvim's commands. true:
+  -- the example list from claudecode.nvim's README -- <leader>ac toggle, af
+  -- focus, ar resume, aC continue, am model, ab add the buffer, as send the
+  -- selection (or add the file, in a file tree), aa accept a diff, ad deny it.
+  -- A list of lazy.nvim-style entries, { lhs, rhs, mode =, ft =, desc = },
+  -- changes that list: an entry on a default's key and mode replaces it, rhs
+  -- false drops it, anything else is added, and `defaults = false` in the list
+  -- starts from nothing. false maps nothing. A key you have mapped yourself is
+  -- left alone.
+  keys = true,
+
+  -- claudecode.nvim's own options. setup() sets claudecode.nvim up with these,
+  -- over what the float needs from it: this plugin as its terminal provider
+  -- and each diff in a tab of its own. It does that once, and not at all when
+  -- claudecode.nvim is set up already or has opts/config in a lazy.nvim spec
+  -- of its own -- the way to keep setting it up yourself. false leaves it to
+  -- you outright.
+  claudecode = {},
+
   -- Warn once per session when the installed claudecode.nvim / Claude Code
   -- versions are older than the pair this plugin is built against (see
   -- compat.lua). Nothing is scraped through a stable API, so a mismatch shows
