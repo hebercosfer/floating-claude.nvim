@@ -13,6 +13,7 @@ cmd("FloatingClaudeMinimize", "minimize", "Collapse Claude into the corner notif
 cmd("FloatingClaudeRestore", "restore", "Bring the Claude float back")
 cmd("FloatingClaudeToggle", "toggle_mini", "Toggle between the Claude float and the notification")
 cmd("FloatingClaudeHide", "hide", "Take Claude off the screen, float and notification both")
+cmd("FloatingClaudeEvents", "events", "Show what floating-claude heard from Claude")
 
 require("floating-claude.keymaps").apply()
 
