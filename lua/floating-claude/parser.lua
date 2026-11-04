@@ -1,9 +1,14 @@
 -- Reading Claude's state back out of the terminal buffer.
 --
--- Claude Code renders a TUI, so there is no API to ask "what is it doing?" --
--- everything here is scraped from the rendered lines: where the input prompt
--- starts, whether a status/spinner line is live, and what the latest message
--- says.
+-- Claude Code renders a TUI, and everything here is scraped from the rendered
+-- lines: where the input prompt starts, whether a status/spinner line is live,
+-- and what the latest message says.
+--
+-- Most of the time Claude is heard through its hooks instead (hooks/), and
+-- this file keeps four jobs: the live status line the corner's title borrows
+-- (status()), the safety net that line gives the session against interrupts,
+-- which fire no hook, the diff predicates, and -- when the hooks are
+-- unavailable -- everything, the way it always has.
 
 local config = require("floating-claude.config")
 local state = require("floating-claude.state")
