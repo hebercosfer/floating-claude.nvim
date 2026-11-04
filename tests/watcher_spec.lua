@@ -349,4 +349,112 @@ describe("watcher", function()
       assert.equals(0, minimized, "nothing is on screen to make room for")
     end)
   end)
+
+  -- Heard through the hooks, nothing needs the screen polled: Claude's state
+  -- comes from events, and a diff is found through window events instead. The
+  -- diff behaviour above must not change; idle restores are the session's now.
+  describe("through window events", function()
+    before_each(function()
+      state.announced = nil
+    end)
+
+    local function float_up()
+      vim.cmd("split")
+      state.win = vim.api.nvim_get_current_win()
+      state.changed()
+      return state.win
+    end
+
+    it("keeps no repeating timer", function()
+      terminal(IDLE)
+      watcher.start_diffs(handlers)
+      vim.wait(100)
+      assert.is_nil(state.watch_timer)
+    end)
+
+    it("minimizes when a diff opens", function()
+      float_up()
+      terminal(IDLE)
+      watcher.start_diffs(handlers)
+      vim.wait(100)
+      assert.equals(0, minimized)
+
+      diff_on_screen()
+
+      assert.is_true(
+        vim.wait(1000, function()
+          return minimized > 0
+        end, 20),
+        "the diff opened under the float and the float stayed there"
+      )
+    end)
+
+    it("still counts a float the diff's own tab minimized as float", function()
+      float_up()
+      terminal(IDLE)
+      watcher.start_diffs(handlers)
+      vim.wait(100)
+
+      -- What claudecode's `:tabnew` sets off: WinLeave minimizes the float,
+      -- and the proposed buffer lands on screen a moment later.
+      state.win = -1
+      corner()
+      state.changed()
+      diff_on_screen()
+      vim.wait(5)
+
+      assert.equals("float", state.before_diff)
+    end)
+
+    it("puts the float straight back once the diff closes", function()
+      float_up()
+      terminal(WORKING)
+      watcher.start_diffs(handlers)
+      vim.wait(100)
+
+      state.win = -1
+      corner()
+      state.changed()
+      local buf, win = diff_on_screen()
+      vim.wait(100)
+      vim.api.nvim_win_close(win, true)
+      vim.api.nvim_buf_delete(buf, { force = true })
+
+      assert.is_true(
+        vim.wait(300, function()
+          return restored > 0
+        end, 20),
+        "the float did not come back with the diff gone"
+      )
+    end)
+
+    it("does not fight a restore the user asked for", function()
+      terminal(IDLE)
+      diff_on_screen()
+      watcher.start_diffs(handlers)
+      vim.wait(100)
+      assert.equals(0, minimized, "nothing was up to minimize")
+
+      float_up() -- the user brings it back by hand
+
+      vim.wait(300, function()
+        return minimized > 0
+      end, 20)
+      assert.equals(0, minimized, "the float was taken away again")
+    end)
+
+    it("leaves the float alone for a hidden leftover", function()
+      float_up()
+      terminal(IDLE)
+      local buf = vim.api.nvim_create_buf(false, true)
+      vim.api.nvim_buf_set_name(buf, "✻ [Claude Code] init.lua (a1b2c3) ⧉ (proposed)")
+      table.insert(buffers, buf)
+
+      watcher.start_diffs(handlers)
+      vim.wait(300, function()
+        return minimized > 0
+      end, 20)
+      assert.equals(0, minimized, "nothing is on screen to make room for")
+    end)
+  end)
 end)
