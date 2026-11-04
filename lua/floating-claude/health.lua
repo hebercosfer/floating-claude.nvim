@@ -25,7 +25,7 @@ function M.check()
   local cc = compat.claudecode()
   if not cc.installed then
     health.error("claudecode.nvim is not installed", {
-      "Install coder/claudecode.nvim and pass require('floating-claude').provider as its terminal provider",
+      "Install coder/claudecode.nvim; require('floating-claude').setup() sets it up to use this provider",
     })
   else
     local reported = cc.version and ("claudecode.nvim " .. cc.version)
@@ -51,7 +51,8 @@ function M.check()
       health.ok("claudecode.nvim is configured to use this provider")
     else
       health.warn("claudecode.nvim is not using this provider", {
-        "terminal = { provider = require('floating-claude').provider }",
+        "Let require('floating-claude').setup() set claudecode.nvim up, with no opts or config in a claudecode.nvim spec of its own",
+        "or pass terminal = { provider = require('floating-claude').provider } to require('claudecode').setup()",
       })
     end
   end

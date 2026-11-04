@@ -109,7 +109,11 @@ describe("keymaps", function()
 
   it("is re-applied by setup()", function()
     keymaps.apply()
-    require("floating-claude").setup({ keymaps = { hide = false } })
+    require("floating-claude").setup({
+      keymaps = { hide = false },
+      keys = false,
+      claudecode = false,
+    })
     assert.same({}, mapped("<leader>aq"))
   end)
 

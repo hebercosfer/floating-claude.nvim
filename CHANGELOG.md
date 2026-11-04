@@ -37,6 +37,15 @@ no status-line misread to come from.
   `"events"` labels each line with the event it came from.
 - A "hooks" section in `:checkhealth floating-claude` says how Claude is heard,
   and why when it is not.
+- floating-claude can be the one plugin you configure, with claudecode.nvim as
+  its dependency: `setup()` sets claudecode.nvim up with this plugin as its
+  terminal and each diff in a tab of its own, taking claudecode.nvim's own
+  options under `claudecode = { … }`.
+- `setup()` maps claudecode.nvim's commands to the keys its README suggests —
+  `<leader>ac` to open Claude, `<leader>as` to send a selection, `<leader>aa` /
+  `<leader>ad` to accept or deny a diff, and the rest. `keys` replaces, drops or
+  adds entries, lazy.nvim-style, for any key and any command or function;
+  `keys = false` maps none. A key you have mapped yourself is left alone.
 
 ### Changed
 
@@ -52,6 +61,12 @@ no status-line misread to come from.
   through window events. Nothing reads the screen while the float is up.
 - The guided tour runs on the hooks path, and a hidden Claude in it comes back
   with a question rather than a finished turn.
+- If you call `setup()` and also set claudecode.nvim up yourself, the order
+  matters now. `setup()` leaves claudecode.nvim alone when it is set up already
+  or has `opts`/`config` in a lazy.nvim spec of its own — so floating-claude as
+  claudecode.nvim's dependency works as before. Called first by other means, it
+  sets claudecode.nvim up itself; pass `claudecode = false` to keep doing that
+  by hand. `keys = false` keeps the new mappings off.
 
 ## [0.4.0] - 2026-10-12
 

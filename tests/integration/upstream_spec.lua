@@ -234,3 +234,43 @@ describe("the Claude Code CLI", function()
     )
   end)
 end)
+
+-- floating-claude as the plugin you set up: its setup() sets the real
+-- claudecode.nvim up, and the keys it puts down by default run commands that
+-- claudecode.nvim must still define.
+describe("floating-claude's setup()", function()
+  local plugin = require("floating-claude")
+  local keys = require("floating-claude.keys")
+
+  local done = false
+  before_each(function()
+    -- Once (plenary's busted has no setup()), and with no WebSocket server:
+    -- nothing here talks to Claude.
+    if not done then
+      plugin.setup({ claudecode = { auto_start = false } })
+      done = true
+    end
+  end)
+
+  it("hands claudecode.nvim this provider and the diff options the float needs", function()
+    local config = require("claudecode").state.config
+    assert.equals(plugin.provider, vim.tbl_get(config, "terminal", "provider"))
+    assert.is_true(config.diff_opts.open_in_new_tab)
+    assert.is_true(config.diff_opts.hide_terminal_in_new_tab)
+  end)
+
+  it("maps only commands claudecode.nvim defines", function()
+    local missing = {}
+    for _, entry in ipairs(keys.DEFAULTS) do
+      local command = entry[2]:match("^<cmd>(%w+)")
+      if vim.fn.exists(":" .. command) ~= 2 then
+        missing[#missing + 1] = command
+      end
+    end
+    assert.same(
+      {},
+      missing,
+      "claudecode.nvim no longer defines these; update keys.DEFAULTS from its README"
+    )
+  end)
+end)
