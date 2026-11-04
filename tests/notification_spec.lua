@@ -562,7 +562,7 @@ describe("notification", function()
         final = false,
       })
       notification.show()
-      assert.same({ " One…" }, body())
+      assert.same({ " ● One…" }, body())
     end)
 
     it("shows a request with the waiting line and the plain title", function()
@@ -605,7 +605,7 @@ describe("notification", function()
       assert.is_not_nil(state.mini_timer)
       session.inject({ event = "Stop", at = record.now_ms(), message = "Done." })
       assert.is_nil(state.mini_timer)
-      assert.same({ " Done.", " ❯ Waiting for you" }, body())
+      assert.same({ " ● Done.", " ❯ Waiting for you" }, body())
     end)
 
     it("titles from the live status line", function()
@@ -628,6 +628,88 @@ describe("notification", function()
       assert.equals(" ✻ Working 1m 5s ", title())
     end)
 
+    describe("content", function()
+      local function turn()
+        terminal(IDLE)
+        prompt("Fix the corner")
+        session.inject({
+          event = "MessageDisplay",
+          at = record.now_ms(),
+          delta = "I'll check the parser. Then the corner.",
+        })
+        session.inject({
+          event = "PreToolUse",
+          at = record.now_ms(),
+          tool_name = "Grep",
+          tool_input = { pattern = "is_working" },
+        })
+      end
+
+      it("shows the latest message and the event after it, by default", function()
+        turn()
+        notification.show()
+        assert.same({ " ● I'll check the parser…", " ⎿ Search is_working" }, body())
+      end)
+
+      it("marks Claude's message with its own bullet, as the float does", function()
+        turn()
+        notification.show()
+        assert.same(
+          { row = 0, col = 1, end_col = 1 + #"●", hl_group = "FloatingClaudeBullet" },
+          paint()[1]
+        )
+      end)
+
+      it("shows only the message when the message is the latest", function()
+        turn()
+        session.inject({ event = "MessageDisplay", at = record.now_ms(), delta = "Found it." })
+        notification.show()
+        assert.same({ " ● Found it." }, body())
+      end)
+
+      it("keeps to Claude's words with messages", function()
+        config.setup({ notification = { content = "messages" } })
+        turn()
+        notification.show()
+        assert.same({ " ● I'll check the parser…" }, body())
+      end)
+
+      it("still says what Claude needs with messages", function()
+        config.setup({ notification = { content = "messages" } })
+        turn()
+        session.inject({
+          event = "PermissionRequest",
+          at = record.now_ms(),
+          tool_name = "Bash",
+          tool_input = { command = "rm -rf build", description = "Clean the build" },
+        })
+        notification.show()
+        assert.same({
+          " ● I'll check the parser…",
+          " Allow Bash: Clean the build?",
+          " ❯ Waiting for you",
+        }, body())
+      end)
+
+      it("labels each line with its event with events", function()
+        config.setup({ notification = { content = "events" } })
+        turn()
+        notification.show()
+        assert.same({
+          " ● MessageDisplay → I'll check the parser…",
+          " ⎿ PreToolUse → Search is_working",
+        }, body())
+      end)
+
+      it("starts afresh when you send the next prompt", function()
+        turn()
+        session.inject({ event = "Stop", at = record.now_ms(), message = "Done." })
+        prompt("Now the docs")
+        notification.show()
+        assert.same({ " ❯ Now the docs" }, body())
+      end)
+    end)
+
     it("never shows scraped text on the hooks path", function()
       terminal({
         "╭──────────────╮",
@@ -645,7 +727,7 @@ describe("notification", function()
         final = true,
       })
       notification.show()
-      assert.same({ " Clean words.", " ❯ Waiting for you" }, body())
+      assert.same({ " ● Clean words.", " ❯ Waiting for you" }, body())
     end)
   end)
 end)
