@@ -91,22 +91,6 @@ describe("records", function()
     assert.equals(string.rep("x", 10), input.tool_input.content)
   end)
 
-  it("gate by window mode", function()
-    local req, stop, ups, pre =
-      { event = "PermissionRequest" },
-      { event = "Stop" },
-      { event = "UserPromptSubmit" },
-      { event = "PreToolUse" }
-    assert.is_false(record.forwarded(req, "float", "request"))
-    assert.is_true(record.forwarded(pre, "corner", "request"))
-    assert.is_true(record.forwarded(req, "hidden", "request"))
-    assert.is_false(record.forwarded(stop, "hidden", "request"))
-    assert.is_true(record.forwarded(stop, "hidden", "idle"))
-    assert.is_true(record.forwarded(ups, "hidden", "idle"))
-    assert.is_false(record.forwarded(pre, "hidden", "idle"))
-    assert.is_false(record.forwarded(req, "hidden", false))
-  end)
-
   it("tell the time in epoch milliseconds", function()
     local before = os.time() * 1000
     local now = record.now_ms()

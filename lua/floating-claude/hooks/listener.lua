@@ -26,11 +26,10 @@ local LUA_DIR = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:
 ---@field port integer
 ---@field received integer The thread's count, as of its last ring or log.
 ---@field set_mode fun(mode: "float"|"corner"|"hidden")
----@field set_show_hidden fun(value: "request"|"idle"|false)
 ---@field log fun(cb: fun(log: floating_claude.Log))
 ---@field stop fun()
 
----@param opts { token: string, keep: integer, show_hidden: "request"|"idle"|false, on_record: fun(rec: floating_claude.Record), on_ring: fun(records: floating_claude.Record[], received: integer) }
+---@param opts { token: string, keep: integer, on_record: fun(rec: floating_claude.Record), on_ring: fun(records: floating_claude.Record[], received: integer) }
 ---@return floating_claude.Listener|nil, string|nil
 function M.start(opts)
   local uv = vim.uv
@@ -42,7 +41,6 @@ function M.start(opts)
   local lua_path = LUA_DIR .. "/?.lua;" .. LUA_DIR .. "/?/init.lua"
   local opts_json = vim.json.encode({
     keep = opts.keep,
-    show_hidden = opts.show_hidden or false,
     -- Knobs for the specs; the thread has its own defaults.
     idle_ms = opts.idle_ms,
     max_connections = opts.max_connections,
@@ -126,9 +124,6 @@ function M.start(opts)
   self.port = port --[[@as integer]]
   function self.set_mode(mode)
     send("mode", mode)
-  end
-  function self.set_show_hidden(value)
-    send("show_hidden", value or "false")
   end
   function self.log(cb)
     table.insert(log_waiters, cb)
