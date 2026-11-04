@@ -20,7 +20,6 @@ describe("the hooks listener", function()
     l = assert(listener.start(vim.tbl_extend("force", {
       token = "t",
       keep = 50,
-      show_hidden = "request",
       on_record = function(rec)
         table.insert(got, rec)
       end,
@@ -58,12 +57,17 @@ describe("the hooks listener", function()
     assert.equals("hi", got[1].prompt)
   end)
 
-  it("forwards nothing while maximized, then replays the turn on minimize", function()
+  -- The corner must be current the moment it opens, so nothing waits for it.
+  it("forwards every event while maximized, and replays the turn on minimize", function()
     start()
     post.sync(l.port, "t", UPS:format("go"))
     post.sync(l.port, "t", PRE)
-    vim.wait(200)
-    assert.equals(0, #got)
+    assert.is_true(
+      vim.wait(2000, function()
+        return #got == 2
+      end),
+      "events were held back while maximized"
+    )
     l.set_mode("corner")
     assert.is_true(vim.wait(2000, function()
       return #rings == 1
@@ -124,16 +128,17 @@ describe("the hooks listener", function()
     assert.equals(0, #got)
   end)
 
-  it("forwards only requests while hidden by default", function()
+  it("forwards every event while hidden", function()
     start().set_mode("hidden")
     post.sync(l.port, "t", STOP)
     post.sync(l.port, "t", PERMISSION)
-    assert.is_true(vim.wait(2000, function()
-      return #got >= 1
-    end))
-    vim.wait(200)
-    assert.equals(1, #got)
-    assert.equals("PermissionRequest", got[1].event)
+    assert.is_true(
+      vim.wait(2000, function()
+        return #got == 2
+      end),
+      "events were held back while hidden"
+    )
+    assert.same({ "Stop", "PermissionRequest" }, { got[1].event, got[2].event })
   end)
 
   it("keeps the newest entries, with long values cut", function()
@@ -146,7 +151,7 @@ describe("the hooks listener", function()
     assert.equals(3, #log.entries)
     assert.equals("3", log.entries[1].payload.prompt)
     assert.equals(string.rep("y", 2000) .. "… [1000 bytes more]", log.entries[3].payload.prompt)
-    assert.equals("kept", log.entries[3].fate)
+    assert.equals("forwarded", log.entries[3].fate)
   end)
 
   it("keeps nothing with keep = 0 but still counts", function()
@@ -165,7 +170,9 @@ describe("the hooks listener", function()
     for _ = 1, 99 do
       post.sync(l.port, "t", PRE)
     end
-    assert.equals(0, #got)
+    assert.is_true(vim.wait(2000, function()
+      return #got == 100
+    end))
     local log = fetch_log()
     assert.equals(50, #log.entries)
     assert.equals(100, log.received)
@@ -187,7 +194,7 @@ describe("the hooks listener", function()
     end))
     assert.equals("mcp__db__query", rings[1].records[1].tool_name)
     local log = fetch_log()
-    assert.equals("kept", log.entries[1].fate)
+    assert.equals("forwarded", log.entries[1].fate)
   end)
 
   -- A raw client: connects, optionally writes, and notes when the listener

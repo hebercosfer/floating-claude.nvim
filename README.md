@@ -223,11 +223,11 @@ lives on a thread of its own, so it answers within a millisecond or two however
 busy Neovim is, and it always answers with an empty `200`: it never approves or
 changes anything. Your own hooks keep running alongside these.
 
-What reaches the editor follows where Claude is. Maximized, nothing does: the
-listener only remembers the turn. In the corner, every event redraws it. Hidden,
-only what could bring Claude back. So the corner takes its words from Claude's
-own events, and tells "Claude finished" apart from "Claude needs a response" —
-which `auto.restore_on_input` and `auto.show_hidden` use.
+Every event reaches the editor as it arrives, wherever Claude is, so the
+corner is current the moment it opens; only drawing it waits until it is up. So
+the corner takes its words from Claude's own events, and tells "Claude
+finished" apart from "Claude needs a response" — which `auto.restore_on_input`
+and `auto.show_hidden` use.
 
 The screen is still read for one line. The title borrows Claude's live status
 line — `✽ Infusing… 8m 24s ↓24.8k` — and that line is also the safety net:
