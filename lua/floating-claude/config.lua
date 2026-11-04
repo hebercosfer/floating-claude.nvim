@@ -31,6 +31,13 @@ M.defaults = {
     -- thing on screen, "block" for the whole paragraph. `max_lines` and `gaps`
     -- shape the block; they do nothing to a sentence.
     body = "sentence",
+    -- What the corner says when Claude is heard through its hooks. "activity":
+    -- Claude's latest message and, under it, whatever came after it -- the
+    -- tool it is running, what it is asking you, your prompt. "messages":
+    -- Claude's words alone, plus anything it needs you for. "events": as
+    -- "activity", with each line labelled by its event (`PreToolUse → …`).
+    -- Reading the screen instead, the corner shows what is on it.
+    content = "activity",
     -- Hard cap on the number of terminal lines tailed.
     max_lines = 12,
     -- Blank-line separators the tail may cross before it stops, so the newest

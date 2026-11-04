@@ -31,6 +31,10 @@ no status-line misread to come from.
   events the plugin heard, as Claude sent them, so you can see what it listens
   to. `hooks = { keep = 0 }` keeps none.
 - `auto.show_hidden` chooses what brings a hidden Claude back as the corner.
+- `notification.content` chooses what the corner says: `"activity"` (the
+  default) shows Claude's latest message and, under it, whatever came after it;
+  `"messages"` keeps to Claude's words plus anything it needs you for;
+  `"events"` labels each line with the event it came from.
 - A "hooks" section in `:checkhealth floating-claude` says how Claude is heard,
   and why when it is not.
 

@@ -116,6 +116,48 @@ describe("the reducer", function()
     assert.same({ "working" }, { s.phase, s.body })
   end)
 
+  -- The corner shows Claude's latest message and, under it, whatever came
+  -- after it -- so the two are kept apart.
+  it("remembers Claude's latest message across the tool calls after it", function()
+    local s = reducer.new()
+    reducer.apply(s, { event = "UserPromptSubmit", at = 1, prompt = "Fix it", synthetic = false })
+    reducer.apply(
+      s,
+      { event = "MessageDisplay", at = 2, delta = "I'll check the parser. Then the corner." }
+    )
+    reducer.apply(
+      s,
+      { event = "PreToolUse", at = 3, tool_name = "Grep", tool_input = { pattern = "is_working" } }
+    )
+    assert.same(
+      { text = "I'll check the parser. Then the corner.", event = "MessageDisplay" },
+      s.message
+    )
+    assert.same(
+      { "tool", "Search is_working", "PreToolUse" },
+      { s.body.kind, s.body.text, s.body.event }
+    )
+  end)
+
+  it("takes the final reply as the latest message", function()
+    local s = reducer.new()
+    reducer.apply(s, { event = "Stop", at = 1, message = "All done." })
+    assert.same({ text = "All done.", event = "Stop" }, s.message)
+    assert.equals("Stop", s.body.event)
+  end)
+
+  it("starts the message afresh with a prompt you typed, not a synthetic one", function()
+    local s = reducer.new()
+    reducer.apply(s, { event = "Stop", at = 1, message = "All done." })
+    reducer.apply(
+      s,
+      { event = "UserPromptSubmit", at = 2, prompt = "<task-notification>…", synthetic = true }
+    )
+    assert.equals("All done.", s.message.text)
+    reducer.apply(s, { event = "UserPromptSubmit", at = 3, prompt = "Again", synthetic = false })
+    assert.is_nil(s.message)
+  end)
+
   it("reports a failed turn as a request in the error style", function()
     local s, fx = reducer.apply(reducer.new(), {
       event = "StopFailure",
