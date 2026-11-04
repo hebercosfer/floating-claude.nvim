@@ -44,7 +44,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # TMPDIR on /home/runner's filesystem -- see the note in ci.yml.
       - uses: rhysd/action-setup-vim@v1
+        env:
+          TMPDIR: ${{ runner.temp }}
         with:
           neovim: true
           version: stable
@@ -129,7 +132,10 @@ jobs:
           ref: main
           path: .tests/claudecode.nvim
 
+      # TMPDIR on /home/runner's filesystem -- see the note in ci.yml.
       - uses: rhysd/action-setup-vim@v1
+        env:
+          TMPDIR: ${{ runner.temp }}
         with:
           neovim: true
           version: ${{ matrix.neovim }}

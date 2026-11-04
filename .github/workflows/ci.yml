@@ -38,7 +38,14 @@ jobs:
           ref: 74b06c6c75e4eeb3108ec01852001636d85a932b
           path: .tests/plenary.nvim
 
+      # The action unpacks Neovim under TMPDIR (/tmp by default) and then
+      # renames it into /home/runner. On some runners those are different
+      # filesystems, and the rename fails with EXDEV ("cross-device link not
+      # permitted") before a single spec runs. runner.temp lives under
+      # /home/runner, so the rename stays on one filesystem.
       - uses: rhysd/action-setup-vim@v1
+        env:
+          TMPDIR: ${{ runner.temp }}
         with:
           neovim: true
           version: ${{ matrix.neovim }}
