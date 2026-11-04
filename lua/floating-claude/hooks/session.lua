@@ -174,7 +174,6 @@ function M.prepare(args, cmd_string)
   local l, err = listener.start({
     token = token,
     keep = config.options.hooks.keep,
-    show_hidden = config.options.auto.show_hidden,
     on_record = M.inject,
     on_ring = M.receive_ring,
   })
