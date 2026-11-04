@@ -128,8 +128,8 @@ function M.build()
       title = "The corner",
       lines = {
         "The title carries what Claude is doing — glyph, verb, elapsed, tokens — which leaves "
-          .. "the body for what Claude is saying: the opening sentence of the newest thing on "
-          .. "screen.",
+          .. "the body for what Claude is saying: the opening sentence of the newest thing it "
+          .. "said, taken from the events Claude Code reports rather than read off its screen.",
         "The `⎿` of a running tool call flickers amber while it runs. Nothing else moves; the "
           .. "words beside it would be unreadable if they did.",
       },
@@ -240,9 +240,9 @@ function M.build()
       lines = {
         "Resolving it puts Claude back the way the diff found it — here the float, straight "
           .. "away, though Claude is back at work. The corner goes with the tab that held it.",
-        "From the corner it would stay put until Claude went idle for a sustained stretch — "
-          .. "`auto.restore_idle_ms`, 1200ms — and only on a real busy-to-idle edge, which is "
-          .. "why a minimize you asked for yourself is never undone.",
+        "From the corner it comes back when Claude finishes a turn — after "
+          .. "`auto.restore_idle_ms`, 1200ms — or at once when it asks you something. A "
+          .. "minimize you asked for while Claude was idle is never undone.",
       },
       enter = function()
         diff.close()
@@ -252,7 +252,7 @@ function M.build()
         {
           1500,
           function()
-            tui.idle()
+            tui.finish("Cooked for 24s", SUMMARY)
           end,
         },
       },
@@ -270,17 +270,11 @@ function M.build()
         "The `❯` holds still: nothing is going on, and the corner should look it. Only work "
           .. "moves, so the two states are tellable apart before you have read either.",
       },
+      -- The turn ended in the beat before: minimizing an idle Claude is a
+      -- move nothing undoes.
       enter = function()
         terminal.minimize()
       end,
-      beats = {
-        {
-          700,
-          function()
-            tui.finish("Cooked for 24s", SUMMARY)
-          end,
-        },
-      },
       hold_ms = 9000,
     },
 
@@ -324,9 +318,11 @@ function M.build()
     {
       title = "Back when it is your turn",
       lines = {
-        "Hidden is not forgotten. When Claude finishes and is waiting on you, it comes back as "
-          .. "the corner — where you last dropped it — rather than landing the float on your "
-          .. "work. `:ClaudeCode` brings the float back whenever you want it.",
+        "Hidden is not forgotten. When Claude asks you for something — a permission, a "
+          .. "question, a plan to approve — it comes back as the corner, where you last dropped "
+          .. "it, rather than landing the float on your work. A turn that simply finishes leaves "
+          .. "it hidden: `auto.show_hidden`. `:ClaudeCode` brings the float back whenever you "
+          .. "want it.",
       },
       enter = function()
         tui.working("Steeping")
@@ -335,7 +331,7 @@ function M.build()
         {
           2200,
           function()
-            tui.finish("Steeped for 2s", "Finished while you were away · 2s")
+            tui.ask("Staging has its own copy of this config. Update that one too?")
           end,
         },
       },
