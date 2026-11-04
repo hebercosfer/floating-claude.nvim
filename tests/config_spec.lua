@@ -61,6 +61,11 @@ describe("config", function()
       assert.equals("idle", config.options.auto.restore_on_input)
     end)
 
+    it("defaults the corner's content to activity", function()
+      config.setup({})
+      assert.equals("activity", config.options.notification.content)
+    end)
+
     it("defaults show_hidden to request and the events key to <leader>ae", function()
       config.setup({})
       assert.equals("request", config.options.auto.show_hidden)
