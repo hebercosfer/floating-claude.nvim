@@ -352,6 +352,10 @@ local function elapsed_since(started)
   return ("%dh %dm"):format(math.floor(s / 3600), math.floor((s % 3600) / 60))
 end
 
+-- What still shows when the corner keeps to Claude's words: anything Claude
+-- needs you for, or the corner could come up without saying why.
+local NEEDS_YOU = { PermissionRequest = true, Elicitation = true, StopFailure = true }
+
 -- A finished turn's frozen marker ("Cooked for 1m 40s"), read off the screen
 -- once per Stop rather than on every redraw.
 local done_marker = {}
@@ -379,20 +383,37 @@ local function from_session(raw)
     status = { working = false }
   end
 
-  local entries = {}
-  local body = st.body
-  if body then
-    local text = body.text
-    if config.options.notification.body == "sentence" then
+  local opts = config.options.notification
+  local labelled = opts.content == "events"
+  local function entry(kind, text, event)
+    if opts.body == "sentence" then
       local first, more = parser.first_sentence(text)
       text = more and (first:gsub("%.+$", "") .. "…") or first
     end
-    if body.kind == "echo" then
-      table.insert(entries, { text = "❯ " .. text, kind = "echo" })
-    elseif body.kind == "tool" then
-      table.insert(entries, { text = "⎿ " .. text, kind = "tool", marker = #"⎿" })
-    else
-      table.insert(entries, { text = text, kind = body.kind })
+    if labelled and event then
+      text = event .. " → " .. text
+    end
+    if kind == "echo" then
+      return { text = "❯ " .. text, kind = "echo" }
+    elseif kind == "tool" then
+      return { text = "⎿ " .. text, kind = "tool", marker = #"⎿" }
+    elseif kind == "bullet" then
+      return { text = "● " .. text, kind = "bullet", marker = #"●" }
+    end
+    return { text = text, kind = kind }
+  end
+
+  -- Claude's latest message, behind the ● Claude's own TUI gives one, then --
+  -- when something came after it -- that.
+  local entries = {}
+  if st.message then
+    table.insert(entries, entry("bullet", st.message.text, st.message.event))
+  end
+  local body = st.body
+  if body and body.event ~= "MessageDisplay" and body.event ~= "Stop" then
+    local needs_you = NEEDS_YOU[body.event]
+    if opts.content ~= "messages" or needs_you then
+      table.insert(entries, entry(body.kind, body.text, body.event))
     end
   end
   return status, entries

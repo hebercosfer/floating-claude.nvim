@@ -173,7 +173,7 @@ describe("demo", function()
       tui.say("Hello there. More follows.")
       notification.show()
       local body = vim.api.nvim_buf_get_lines(state.mini_buf, 0, -1, false)
-      assert.same({ " Hello there…" }, body)
+      assert.same({ " ● Hello there…" }, body)
 
       demo.stop()
       assert.is_false(session.active())

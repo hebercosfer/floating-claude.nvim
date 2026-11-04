@@ -109,6 +109,11 @@ require("floating-claude").setup({
     refresh_ms = 120,   -- how often the corner redraws while Claude works
     pulse_ms = 700,     -- a running tool call's ⎿ flickers every pulse_ms / 2; false holds it still
     body = "sentence",  -- "sentence" (opening sentence) or "block" (paragraph)
+    -- Heard through hooks: "activity" shows Claude's latest message and, under
+    -- it, whatever came after (the tool it runs, what it asks you, your prompt);
+    -- "messages" keeps to Claude's words plus anything it needs you for;
+    -- "events" labels each line with its event (`PreToolUse → …`).
+    content = "activity",
     max_lines = 12,     -- "block" mode, when reading the screen: lines tailed
     gaps = 1,           -- "block" mode, when reading the screen: blank separators crossed
     border = "rounded",
