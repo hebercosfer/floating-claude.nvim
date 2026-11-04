@@ -99,11 +99,11 @@ require("floating-claude").setup({
   notification = {
     width = 64,
     max_height = 12,
-    refresh_ms = 120,   -- how often the notification re-reads the terminal
+    refresh_ms = 120,   -- how often the corner redraws while Claude works
     pulse_ms = 700,     -- a running tool call's ⎿ flickers every pulse_ms / 2; false holds it still
     body = "sentence",  -- "sentence" (opening sentence) or "block" (paragraph)
-    max_lines = 12,     -- hard cap on terminal lines tailed, in "block" mode
-    gaps = 1,           -- blank separators the tail may cross, in "block" mode
+    max_lines = 12,     -- "block" mode, when reading the screen: lines tailed
+    gaps = 1,           -- "block" mode, when reading the screen: blank separators crossed
     border = "rounded",
     status_in_title = true,  -- Claude's state in the title, not the body
     waiting = "Waiting for you",  -- said under the message while Claude is idle
@@ -112,13 +112,24 @@ require("floating-claude").setup({
     zindex = 60,
     draggable = true,   -- drag it out of the way with the mouse; false leaves the button alone
   },
+  -- Hear Claude through the events Claude Code posts to a small listener on
+  -- 127.0.0.1, instead of reading its screen. false reads the screen for
+  -- everything; `keep` is how many events :FloatingClaudeEvents can show you
+  -- (0 keeps none). See "Privacy and security".
+  hooks = { enabled = true, keep = 50 },
   auto = {
     minimize_on_diff = true,   -- minimize when an edit-approval diff opens
-    restore_on_input = true,   -- restore once Claude waits for input
+    -- What brings the float back from the corner: "idle" when Claude finishes
+    -- a turn or asks you something, "request" only when it asks, false never.
+    restore_on_input = "idle",
+    -- What brings a hidden Claude back, as the corner: "request" when it asks
+    -- you something (a permission, a question, a plan, a failed turn), "idle"
+    -- also when it finishes a turn, false never.
+    show_hidden = "request",
     minimize_on_leave = true,  -- minimize when focus leaves the float
     restore_on_enter = true,   -- restore when the notification is entered
-    restore_idle_ms = 1200,    -- sustained idle required before restoring
-    watch_ms = 300,            -- watcher poll interval
+    restore_idle_ms = 1200,    -- wait after a finished turn before restoring; requests act at once
+    watch_ms = 300,            -- screen poll interval, when reading the screen
   },
   keymaps = {
     -- Terminal-mode mapping in the Claude buffer, to minimize without leaving
@@ -128,6 +139,9 @@ require("floating-claude").setup({
     -- both, while it keeps running. Set to false to skip it; a mapping of
     -- your own on the same key is left alone.
     hide = "<leader>aq",
+    -- Normal-mode mapping that opens what the plugin heard from Claude, as
+    -- Claude sent it. Same rules as `hide`.
+    events = "<leader>ae",
   },
   -- Warn once per session when claudecode.nvim / Claude Code are older than
   -- the pair this plugin is built against. Set to false to silence.
@@ -154,6 +168,7 @@ scraped text arrives plain and there is nothing to copy. These groups are all
 | `FloatingClaudeBullet`  | `Title`          | Claude's `●` in front of a message      |
 | `FloatingClaudePrompt`  | `Comment`        | the echo of what you typed              |
 | `FloatingClaudeMore`    | `Comment`        | the `…` marking what did not fit        |
+| `FloatingClaudeError`   | `DiagnosticError`| a turn that failed (rate limit, API error) |
 
 ```lua
 -- e.g. the timer without your colourscheme's italic comments
@@ -168,13 +183,16 @@ vim.api.nvim_set_hl(0, "FloatingClaudeDetail", { link = "LineNr" })
 | `:FloatingClaudeRestore`       | `require("floating-claude").restore()`      | Bring the full float back                |
 | `:FloatingClaudeToggle`        | `require("floating-claude").toggle_mini()`  | Flip between the two                     |
 | `:FloatingClaudeHide`          | `require("floating-claude").hide()`         | Take both off the screen (`<leader>aq`)  |
+| `:FloatingClaudeEvents`        | `require("floating-claude").events()`       | Show what the plugin heard from Claude (`<leader>ae`) |
 | `:FloatingClaudeDemo [auto]`   | `require("floating-claude").demo(opts)`     | Run the [guided tour](#see-it-move)      |
 | `:FloatingClaudeDemo stop`     | `require("floating-claude").demo_stop()`    | End the tour early                       |
 
 `require("floating-claude").is_running()` reports whether Claude Code is live.
 
 Hiding leaves Claude running with neither window up. It comes back as the
-corner on its own once it is waiting on you, and `:ClaudeCode` — the
+corner on its own when Claude asks you for something — a permission, a
+question, a plan to approve, a turn that failed — and, with
+`auto.show_hidden = "idle"`, when a turn simply finishes too. `:ClaudeCode` — the
 `<leader>ac` in claudecode.nvim's example config — brings back the full float
 whenever you want it. `<leader>aq` is mapped in normal mode only: inside the
 float your keys go to Claude, so step out with `<C-\><C-n>` first, or minimize
@@ -189,6 +207,36 @@ end, { desc = "Minimize Claude to notification" })
 ```
 
 ## How the auto-minimize works
+
+### How it hears Claude
+
+When Claude starts, the plugin adds `--settings <file>` to its command line.
+The file registers HTTP hooks: Claude Code posts each lifecycle event — a
+prompt, a tool call, a permission dialog, a paragraph it wrote, a finished or
+failed turn — to a small listener the plugin runs on `127.0.0.1`. The listener
+lives on a thread of its own, so it answers within a millisecond or two however
+busy Neovim is, and it always answers with an empty `200`: it never approves or
+changes anything. Your own hooks keep running alongside these.
+
+What reaches the editor follows where Claude is. Maximized, nothing does: the
+listener only remembers the turn. In the corner, every event redraws it. Hidden,
+only what could bring Claude back. So the corner takes its words from Claude's
+own events, and tells "Claude finished" apart from "Claude needs a response" —
+which `auto.restore_on_input` and `auto.show_hidden` use.
+
+The screen is still read for one line. The title borrows Claude's live status
+line — `✽ Infusing… 8m 24s ↓24.8k` — and that line is also the safety net:
+pressing Esc fires no hook at all, so a corner that sees no live line after
+Claude went quiet calls the turn over.
+
+Claude is read off the screen instead, the way the rest of this section
+describes, when hooks are unavailable: `hooks = false`, a Claude Code older than
+2.1.301 (or one whose version cannot be read), a `claude` command that already
+passes its own `--settings`, or a corner that sees Claude working while no event
+has ever arrived (hooks disabled by a policy, say). `:checkhealth
+floating-claude` says which and why.
+
+### When it reads the screen
 
 Claude Code is a TUI, so there is no API to ask what it is doing. A timer polls
 two things:
@@ -208,8 +256,9 @@ diff opened. A float the diff took away comes straight back, even though Claude
 is still working; a Claude that was in the corner stays there, and one you had
 hidden stays hidden.
 
-From the corner, Claude comes back as the float once it is waiting on you. That
-restore waits for _sustained_ idle (`restore_idle_ms`) after a busy→idle
+From the corner, Claude comes back as the float once it is waiting on you
+(through the hooks: when it finishes a turn, after `restore_idle_ms`, or at once
+when it asks you something). Reading the screen, that restore waits for _sustained_ idle (`restore_idle_ms`) after a busy→idle
 transition, so the brief lull between approving a diff and Claude resuming
 doesn't pop the float over your work. Because the clock only starts on a real
 busy→idle edge, a manual minimize while Claude is already idle is never undone
@@ -287,6 +336,34 @@ session, kept on screen if the editor shrinks. A global `<LeftMouse>`,
 corner is up and put back when it goes; `notification.draggable = false` leaves
 the button alone entirely.
 
+## Privacy and security
+
+Hearing Claude through its hooks means the plugin receives what Claude Code
+posts, and it posts a lot: your prompts, Claude's replies, the input of every
+tool call (commands, the contents of files it writes) and their output (command
+output, the files it reads). The plugin cannot ask for less. What it does with
+it:
+
+- **Kept in memory only.** The listener keeps the last `hooks.keep` events
+  (50) for `:FloatingClaudeEvents`, with long values cut at 2000 bytes, plus
+  the few fields the corner needs. Nothing is written to disk, nothing leaves
+  the machine, and it is all dropped when Claude exits. `hooks = { keep = 0 }`
+  keeps no copies at all; `hooks = false` turns the listener off.
+- **Look for yourself.** `<leader>ae` (`:FloatingClaudeEvents`) opens those
+  events exactly as Claude sent them. A secret that passed through — a `cat
+  .env` — shows up there, cut at the cap: in plain view rather than hidden.
+- **Only Claude gets in.** The listener binds `127.0.0.1` on a random port and
+  drops any request without the session's token, a fresh one each time Claude
+  starts. Anything else that connects is hung up on: a request head past 16 KiB,
+  a connection that goes quiet for 5 seconds, more than 64 at once. The token
+  lives in the settings file, in Neovim's run directory with mode `0600` —
+  never on the command line, which every user on the machine can read — and the
+  file is deleted when Claude exits or Neovim quits.
+- **It never decides anything.** Claude acts on what its hooks reply, so the
+  listener only ever replies with an empty `200`. For the same reason the port
+  stays open for as long as Claude runs: a port given up early could be taken
+  by another program that would answer in its place.
+
 ## Compatibility
 
 The supported pair is pinned in `compat.lua` and checked the first time Claude
@@ -306,6 +383,10 @@ floor and the rest is feature-detected. From the CLI we need the rule-framed
 input prompt and, above it while a turn runs, a spinner line carrying its
 elapsed time in parentheses — `✽ … (8m 24s · …)`, or the older `… (esc to
 interrupt)`. A UI that renders neither parses as "always idle".
+
+Hearing Claude through its hooks needs Claude Code 2.1.301 or newer — the first
+verified to post the events the listener reads. An older CLI is read off the
+screen, as above.
 
 A mismatch is a warning, never a hard failure: the float still works, the
 automatic minimize/restore is what degrades. To freeze the tested pair instead
