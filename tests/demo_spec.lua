@@ -159,5 +159,41 @@ describe("demo", function()
       demo.start()
       assert.is_false(demo.running())
     end)
+
+    -- What a real Claude is heard through: the tour's stand-in posts the same
+    -- events, so the corner's words come from them and not from its screen.
+    it("takes the corner's words from its scripted events", function()
+      local columns, lines = vim.o.columns, vim.o.lines
+      vim.o.columns, vim.o.lines = 120, 40
+      local session = require("floating-claude.hooks.session")
+
+      demo.start()
+      assert.is_true(session.active())
+      tui.prompt("Explain the debounce")
+      tui.say("Hello there. More follows.")
+      notification.show()
+      local body = vim.api.nvim_buf_get_lines(state.mini_buf, 0, -1, false)
+      assert.same({ " Hello there…" }, body)
+
+      demo.stop()
+      assert.is_false(session.active())
+      vim.o.columns, vim.o.lines = columns, lines
+    end)
+
+    it("brings a hidden Claude back when it asks you something", function()
+      local columns, lines = vim.o.columns, vim.o.lines
+      vim.o.columns, vim.o.lines = 120, 40
+      demo.start()
+      require("floating-claude.terminal").hide()
+      assert.equals("hidden", state.mode())
+
+      tui.ask("Run the migration against staging too?")
+      assert.equals("corner", state.mode())
+      local body = vim.api.nvim_buf_get_lines(state.mini_buf, 0, -1, false)
+      assert.equals(" Run the migration against staging too?", body[1])
+
+      demo.stop()
+      vim.o.columns, vim.o.lines = columns, lines
+    end)
   end)
 end)
