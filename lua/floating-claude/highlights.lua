@@ -24,6 +24,7 @@ local GROUPS = {
   FloatingClaudeBullet = "Title", -- Claude's ● in front of a message
   FloatingClaudePrompt = "Comment", -- the echo of what you typed
   FloatingClaudeMore = "Comment", -- the … marking what did not fit
+  FloatingClaudeError = "DiagnosticError", -- a turn that failed (rate limit, API error)
 }
 
 local function define()

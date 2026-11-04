@@ -1,10 +1,17 @@
 -- The corner notification: a small, unfocusable window that tails Claude's
 -- latest output while the big float is hidden.
+--
+-- Two sources feed it. Heard through Claude's hooks (hooks/session.lua), the
+-- words come from events and the screen is read for one line only -- the live
+-- status line the title borrows -- plus a finished turn's marker, once. Without
+-- the hooks, everything is read off the screen (parser.lua), as before.
 
 local config = require("floating-claude.config")
 local drag = require("floating-claude.drag")
 local highlights = require("floating-claude.highlights")
 local parser = require("floating-claude.parser")
+local record = require("floating-claude.hooks.record")
+local session = require("floating-claude.hooks.session")
 local state = require("floating-claude.state")
 
 ---@type uv
@@ -267,6 +274,7 @@ local WHOLE_ROW = {
   status = "FloatingClaudeStatus",
   waiting = "FloatingClaudeWaiting",
   done = "FloatingClaudeDone",
+  error = "FloatingClaudeError",
 }
 
 -- The group a marker wears when it is not pulsing.
@@ -332,14 +340,78 @@ local function paint(buf, rows, working)
   end
 end
 
--- Render (creating or resizing) the corner notification.
-local function render()
+-- How long a turn has run, the way Claude's own timer reads: 8s, 1m 40s, 2h 5m.
+local function elapsed_since(started)
+  local now = record.now_ms()
+  local s = math.max(0, math.floor((now - (started or now)) / 1000))
+  if s < 60 then
+    return s .. "s"
+  elseif s < 3600 then
+    return ("%dm %ds"):format(math.floor(s / 60), s % 60)
+  end
+  return ("%dh %dm"):format(math.floor(s / 3600), math.floor((s % 3600) / 60))
+end
+
+-- A finished turn's frozen marker ("Cooked for 1m 40s"), read off the screen
+-- once per Stop rather than on every redraw.
+local done_marker = {}
+
+-- What the hooks say, in the shape render() wants: the status the title and
+-- the waiting line are made from, and the body's one entry. The screen is
+-- read only for the live status line (`raw`, when the caller already has it)
+-- and, once a turn ends, its marker.
+local function from_session(raw)
+  local st = session.state()
+  local status
+  if st.phase == "working" then
+    status = raw or parser.status()
+    if not status.working then
+      -- The status line has not been drawn yet: our own clock stands in.
+      status =
+        { working = true, glyph = "✻", verb = "Working", elapsed = elapsed_since(st.started) }
+    end
+  elseif st.phase == "idle" then
+    if done_marker.key ~= st.last_event_at then
+      done_marker = { key = st.last_event_at, value = parser.status().done }
+    end
+    status = { working = false, done = done_marker.value }
+  else
+    status = { working = false }
+  end
+
+  local entries = {}
+  local body = st.body
+  if body then
+    local text = body.text
+    if config.options.notification.body == "sentence" then
+      local first, more = parser.first_sentence(text)
+      text = more and (first:gsub("%.+$", "") .. "…") or first
+    end
+    if body.kind == "echo" then
+      table.insert(entries, { text = "❯ " .. text, kind = "echo" })
+    elseif body.kind == "tool" then
+      table.insert(entries, { text = "⎿ " .. text, kind = "tool", marker = #"⎿" })
+    else
+      table.insert(entries, { text = text, kind = body.kind })
+    end
+  end
+  return status, entries
+end
+
+-- Render (creating or resizing) the corner notification. `raw` is a status
+-- the caller has just read, so a tick does not read the screen twice.
+local function render(raw)
   local opts = config.options.notification
   highlights.ensure()
-  local status = parser.status()
-  local entries = {}
-  for _, line in ipairs(parser.status_lines()) do
-    table.insert(entries, { text = line })
+  local status, entries
+  if session.active() then
+    status, entries = from_session(raw)
+  else
+    status = parser.status()
+    entries = {}
+    for _, line in ipairs(parser.status_lines()) do
+      table.insert(entries, { text = line })
+    end
   end
 
   -- Under the message goes whatever the title is not carrying: everything when
@@ -423,15 +495,20 @@ local function render()
   state.pulse = state.pulse + 1
 end
 
-function M.show()
-  if not state.buf_valid() then
-    vim.notify("Claude Code is not running.", vim.log.levels.WARN)
-    return false
+-- The redraw timer. Read off the screen, the corner has to look every
+-- refresh_ms to notice anything. Heard through hooks, events redraw it, and
+-- the timer is only for what moves on its own while Claude works: the
+-- spinner glyph and timer the title borrows, the tool call's pulse, and the
+-- safety net that notices an interrupt. Idle or waiting on you, it is off.
+local function sync_timer()
+  if session.active() and session.state().phase ~= "working" then
+    stop_timer()
+    return
+  end
+  if state.mini_timer then
+    return
   end
   local refresh_ms = config.options.notification.refresh_ms
-  render()
-  drag.attach()
-  stop_timer()
   state.mini_timer = uv.new_timer()
   state.mini_timer:start(
     refresh_ms,
@@ -445,10 +522,39 @@ function M.show()
         M.hide()
         return
       end
-      render()
+      if session.active() then
+        local raw = parser.status()
+        render(raw)
+        session.tick(raw)
+      else
+        render()
+      end
     end)
   )
+end
+
+function M.show()
+  if not state.buf_valid() then
+    vim.notify("Claude Code is not running.", vim.log.levels.WARN)
+    return false
+  end
+  render()
+  drag.attach()
+  stop_timer()
+  sync_timer()
   return true
 end
+
+--- Redraw now, if the corner is up, and start or stop its timer to match.
+--- The session calls this whenever what it heard changes the state.
+function M.refresh()
+  if not state.mini_win_valid() or not state.buf_valid() then
+    return
+  end
+  render()
+  sync_timer()
+end
+
+session.on_change(M.refresh)
 
 return M

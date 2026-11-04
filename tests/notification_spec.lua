@@ -498,4 +498,154 @@ describe("notification", function()
       end
     end)
   end)
+
+  -- Heard through Claude's hooks: the words come from events, and the screen
+  -- is read only for the title's live status line and a finished turn's
+  -- marker.
+  describe("on the hooks path", function()
+    local record = require("floating-claude.hooks.record")
+    local session = require("floating-claude.hooks.session")
+    local now_ms
+
+    local IDLE = { "", RULE, "❯ ", RULE }
+
+    local function prompt(text)
+      session.inject({
+        event = "UserPromptSubmit",
+        at = record.now_ms(),
+        prompt = text,
+        synthetic = false,
+      })
+    end
+
+    before_each(function()
+      now_ms = record.now_ms
+      session.start_scripted()
+    end)
+
+    after_each(function()
+      session.stop()
+      record.now_ms = now_ms
+    end)
+
+    it("echoes the prompt until Claude answers", function()
+      terminal(IDLE)
+      prompt("Run the suite")
+      notification.show()
+      assert.same({ " ❯ Run the suite" }, body())
+      assert.same(
+        { row = 0, col = 0, end_col = #" ❯ Run the suite", hl_group = "FloatingClaudePrompt" },
+        paint()[1]
+      )
+    end)
+
+    it("shows a running tool behind ⎿", function()
+      terminal(IDLE)
+      prompt("List them")
+      session.inject({
+        event = "PreToolUse",
+        at = record.now_ms(),
+        tool_name = "Bash",
+        tool_input = { command = "ls", description = "List files" },
+      })
+      notification.show()
+      assert.same({ " ⎿ List files" }, body())
+    end)
+
+    it("shows the opening sentence of a streamed paragraph", function()
+      terminal(IDLE)
+      prompt("Explain")
+      session.inject({
+        event = "MessageDisplay",
+        at = record.now_ms(),
+        delta = "One. Two.",
+        final = false,
+      })
+      notification.show()
+      assert.same({ " One…" }, body())
+    end)
+
+    it("shows a request with the waiting line and the plain title", function()
+      terminal(IDLE)
+      prompt("Ask me")
+      session.inject({
+        event = "PermissionRequest",
+        at = record.now_ms(),
+        tool_name = "AskUserQuestion",
+        tool_input = { questions = { { question = "Which color do you prefer?" } } },
+      })
+      notification.show()
+      assert.equals(config.options.notification.title, title())
+      assert.same({ " Which color do you prefer?", " ❯ Waiting for you" }, body())
+    end)
+
+    it("paints a failed turn in FloatingClaudeError", function()
+      terminal(IDLE)
+      prompt("Go")
+      session.inject({
+        event = "StopFailure",
+        at = record.now_ms(),
+        error = "rate_limit",
+        message = "API Error: Rate limit reached",
+      })
+      notification.show()
+      assert.same({ " API Error: Rate limit reached", " ❯ Waiting for you" }, body())
+      assert.same({
+        row = 0,
+        col = 0,
+        end_col = #" API Error: Rate limit reached",
+        hl_group = "FloatingClaudeError",
+      }, paint()[1])
+    end)
+
+    it("runs no timer once Claude is idle", function()
+      terminal(IDLE)
+      prompt("Go")
+      notification.show()
+      assert.is_not_nil(state.mini_timer)
+      session.inject({ event = "Stop", at = record.now_ms(), message = "Done." })
+      assert.is_nil(state.mini_timer)
+      assert.same({ " Done.", " ❯ Waiting for you" }, body())
+    end)
+
+    it("titles from the live status line", function()
+      terminal({ "", "✽ Infusing… (8m 24s · ↓ 24.8k tokens)", RULE, "❯ ", RULE })
+      prompt("Go")
+      notification.show()
+      assert.equals(" ✽ Infusing… 8m 24s ↓24.8k ", title())
+    end)
+
+    it("titles from its own clock before the status line appears", function()
+      terminal(IDLE)
+      record.now_ms = function()
+        return 1000
+      end
+      prompt("Go")
+      record.now_ms = function()
+        return 66000
+      end
+      notification.show()
+      assert.equals(" ✻ Working 1m 5s ", title())
+    end)
+
+    it("never shows scraped text on the hooks path", function()
+      terminal({
+        "╭──────────────╮",
+        "│ ● Leftover   │                              │  src/a.lua +3 -1",
+        "│ ⎿ $ tail -f  │                              │  @@ -1,4 +1,6 @@",
+        "╰──────────────╯                              │",
+        RULE,
+        "❯ ",
+        RULE,
+      })
+      session.inject({
+        event = "MessageDisplay",
+        at = record.now_ms(),
+        delta = "Clean words.",
+        final = true,
+      })
+      notification.show()
+      assert.same({ " Clean words.", " ❯ Waiting for you" }, body())
+    end)
+  end)
 end)
