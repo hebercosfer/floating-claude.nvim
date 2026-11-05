@@ -303,8 +303,9 @@ end
 -- still-loaded buffer. A denied diff is where the two come apart, because
 -- deny_current_diff deliberately leaves the tab open ("Do not close
 -- windows/tabs here; just mark as rejected") and the user is then the one who
--- closes it -- which hides the buffer without deleting it. Confirmed against
--- claudecode.nvim @ 2390c6e.
+-- closes it -- which hides the buffer without deleting it.
+-- tests/integration/upstream_spec.lua checks all of this against the real
+-- claudecode.nvim.
 
 --- Does a proposed-changes buffer exist at all -- displayed or hidden?
 --- The narrow question, for the moment during upstream's own cleanup when the
