@@ -12,10 +12,18 @@ patches — is written out once, in the README's
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-11-05
+
+Everything `main` shipped as [0.5.0](https://github.com/hebercosfer/floating-claude.nvim/blob/main/CHANGELOG.md)
+except its `vim.pack` install example, which needs Neovim 0.12; nothing else
+needs Neovim 0.11. A patch release carrying features and a retarget, because
+this line cannot emit anything else — see [Versioning](README.md#versioning).
+
 Claude is heard through its own events instead of read off its screen. The
 corner's words no longer come from scraping the TUI, so box lines, tool traces
 and the `/diff` panel have nowhere to leak in from, and a stuck "working" has
-no status-line misread to come from.
+no status-line misread to come from. floating-claude can also be the one plugin
+you configure now: `setup()` sets claudecode.nvim up and maps its commands.
 
 ### Added
 
@@ -70,6 +78,13 @@ no status-line misread to come from.
   claudecode.nvim's dependency works as before. Called first by other means, it
   sets claudecode.nvim up itself; pass `claudecode = false` to keep doing that
   by hand. `keys = false` keeps the new mappings off.
+
+### Compatibility
+
+- Neovim 0.10+, tested at 0.10.4 and nothing else
+- claudecode.nvim `main` @ `af04fbf` (v0.3.0 + 142); minimum 0.2.0
+- Claude Code CLI 2.1.318; minimum 2.1.0, and 2.1.301 to be heard through its
+  hooks
 
 ## [0.1.2] - 2026-10-12
 
@@ -313,7 +328,8 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/hebercosfer/floating-claude.nvim/releases/tag/v0.1.0
