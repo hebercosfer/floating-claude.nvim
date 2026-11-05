@@ -81,6 +81,24 @@ opts = {
 },
 ```
 
+### Without a plugin manager
+
+Neovim 0.12 installs plugins itself, with `vim.pack` (`:help vim.pack`). In
+`init.lua`:
+
+```lua
+vim.pack.add({
+  "https://github.com/coder/claudecode.nvim",
+  "https://github.com/hebercosfer/floating-claude.nvim",
+})
+
+require("floating-claude").setup()
+```
+
+`vim.pack.add()` clones both on the first start, asking you to confirm, and puts
+them on the runtimepath, so `setup()` can follow straight away. It takes the
+same options as `opts` above. `vim.pack.update()` updates both.
+
 ### Keys
 
 | Key          | Mode              | Runs                                          |
