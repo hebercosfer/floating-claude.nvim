@@ -61,7 +61,9 @@ no status-line misread to come from.
   events and runs its timer only while Claude works, and diffs are followed
   through window events. Nothing reads the screen while the float is up.
 - The guided tour runs on the hooks path, and a hidden Claude in it comes back
-  with a question rather than a finished turn.
+  with a question rather than a finished turn. It also shows the corner keeping
+  Claude's words up with the tool it runs under them, and opens the events view
+  on the turn it has just played.
 - If you call `setup()` and also set claudecode.nvim up yourself, the order
   matters now. `setup()` leaves claudecode.nvim alone when it is set up already
   or has `opts`/`config` in a lazy.nvim spec of its own — so floating-claude as

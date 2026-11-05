@@ -37,6 +37,7 @@ local SAFETY_MS = 1000
 ---@field active boolean
 ---@field reason string|nil
 ---@field scripted boolean
+---@field script_log floating_claude.Log|nil The tour's own log, kept as the listener keeps one.
 ---@field listener floating_claude.Listener|nil
 ---@field settings_path string|nil
 ---@field state floating_claude.State
@@ -53,6 +54,7 @@ local function fresh()
     active = false,
     reason = nil,
     scripted = false,
+    script_log = nil,
     listener = nil,
     settings_path = nil,
     state = reducer.new(),
@@ -203,6 +205,36 @@ end
 function M.start_scripted()
   M.stop()
   S.active, S.scripted = true, true
+  S.script_log = { received = 0, rejected = 0, entries = {} }
+end
+
+--- The tour's stand-in posting an event in Claude Code's own shape. It is kept
+--- and compacted as the listener thread keeps and compacts one -- the same
+--- log entry, the same record -- so the events view has something true to show.
+---@param event table A hook payload, as Claude Code would post it.
+function M.post_scripted(event)
+  if not (S.active and S.scripted) then
+    return
+  end
+  local at, log = record.now_ms(), S.script_log
+  log.received = log.received + 1
+  local keep = config.options.hooks.keep
+  if keep > 0 then
+    table.insert(log.entries, {
+      at = at,
+      event = event.hook_event_name,
+      fate = "forwarded",
+      size = #vim.json.encode(event),
+      payload = record.cap(event, record.TEXT_CAP),
+    })
+    while #log.entries > keep do
+      table.remove(log.entries, 1)
+    end
+  end
+  local rec = record.compact(event, at)
+  if rec then
+    M.inject(rec)
+  end
 end
 
 ---@return boolean
@@ -341,6 +373,12 @@ end
 function M.log(cb, opts)
   if S.listener then
     S.listener.log(cb, opts)
+  elseif S.script_log then
+    local log = vim.deepcopy(S.script_log)
+    if opts and opts.counts then
+      log.entries = {}
+    end
+    cb(log)
   else
     cb(nil)
   end
