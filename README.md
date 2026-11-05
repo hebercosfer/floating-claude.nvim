@@ -365,6 +365,9 @@ doesn't pop the float over your work. Because the clock only starts on a real
 busy→idle edge, a manual minimize while Claude is already idle is never undone
 by the watcher. A hidden Claude comes back on that same edge, but only as far
 as the corner: enough to tell you it is waiting, without landing on your work.
+The screen cannot tell a question from a finished turn, so there
+`restore_on_input` and `auto.show_hidden` act on either; `false` still means
+never.
 
 The same scraping feeds the notification, refreshing every `refresh_ms`, and it
 keeps the two apart. The title carries what Claude is *doing* — `✽ Infusing… 8m

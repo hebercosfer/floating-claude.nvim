@@ -83,6 +83,8 @@ M.defaults = {
     -- What brings a hidden Claude back, as the corner: "request" when Claude
     -- asks you for something -- a permission, a question, a plan to approve, or
     -- a turn that failed -- "idle" also when it finishes a turn, false never.
+    -- Reading the screen, which cannot tell a request from a finished turn,
+    -- both levels act on Claude settling.
     show_hidden = "request",
     -- Minimize when focus leaves the float, so stepping away to your code
     -- collapses Claude to the corner instead of leaving it over your work.

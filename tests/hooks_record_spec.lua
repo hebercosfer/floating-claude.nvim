@@ -59,6 +59,28 @@ describe("records", function()
     assert.equals("Final: all tests pass now.", shown.delta)
   end)
 
+  -- A long turn overflows the ring; the prompt that opened it is what the
+  -- title's clock counts from, so it outlives everything after it.
+  it("keep the turn's prompt when the ring is full", function()
+    local ring = {}
+    record.push(ring, { event = "UserPromptSubmit", at = 1, synthetic = false })
+    for i = 1, record.RING_MAX + 5 do
+      record.push(ring, { event = "PreToolUse", at = i + 1 })
+    end
+    assert.equals(record.RING_MAX, #ring)
+    assert.equals("UserPromptSubmit", ring[1].event)
+    assert.equals(record.RING_MAX + 6, ring[#ring].at)
+  end)
+
+  it("drop the oldest record of a ring that has no prompt", function()
+    local ring = {}
+    for i = 1, record.RING_MAX + 1 do
+      record.push(ring, { event = "PreToolUse", at = i })
+    end
+    assert.equals(record.RING_MAX, #ring)
+    assert.equals(2, ring[1].at)
+  end)
+
   it("mark synthetic prompts", function()
     local r = record.compact(
       { hook_event_name = "UserPromptSubmit", prompt = "<task-notification>\n…" },
