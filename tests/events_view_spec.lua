@@ -82,6 +82,7 @@ describe("the events view", function()
   it("says why it is not listening", function()
     local info =
       vim.tbl_extend("force", LISTENING, { active = false, reason = "hooks = false in setup()" })
+    info.port = nil
     assert.truthy(
       text(events_view.lines(info, nil)):find(
         "Not listening: hooks = false in setup(). The plugin reads Claude's screen instead.",
@@ -89,6 +90,25 @@ describe("the events view", function()
         true
       )
     )
+  end)
+
+  -- Falling back to the screen leaves the listener up -- Claude was started
+  -- pointing at it -- so what it hears is still there to see.
+  it("still shows what the listener hears after falling back to the screen", function()
+    local info = vim.tbl_extend("force", LISTENING, {
+      active = false,
+      reason = "no hook events arrived although Claude is working",
+    })
+    local shown = text(events_view.lines(info, { received = 2, rejected = 0, entries = {} }))
+    assert.truthy(
+      shown:find(
+        "Reading Claude's screen: no hook events arrived although Claude is working.",
+        1,
+        true
+      )
+    )
+    assert.truthy(shown:find("The listener on 127.0.0.1:41234 is still up", 1, true))
+    assert.truthy(shown:find("Received 2, rejected 0.", 1, true))
   end)
 
   it("says when Claude is not running", function()
@@ -150,6 +170,16 @@ describe("the events view", function()
     assert.equals("nofile", vim.bo[buf].buftype)
     assert.equals(vim.api.nvim_buf_line_count(buf), vim.api.nvim_win_get_cursor(0)[1])
     vim.api.nvim_feedkeys("q", "x", false)
+    assert.is_false(vim.api.nvim_buf_is_valid(buf))
+  end)
+
+  it("closes with q when it is the last window, too", function()
+    events_view.open()
+    local buf = vim.api.nvim_get_current_buf()
+    vim.cmd("only")
+    vim.v.errmsg = ""
+    vim.api.nvim_feedkeys("q", "x", false)
+    assert.equals("", vim.v.errmsg)
     assert.is_false(vim.api.nvim_buf_is_valid(buf))
   end)
 
