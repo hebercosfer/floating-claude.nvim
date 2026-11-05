@@ -41,6 +41,8 @@ no status-line misread to come from.
   its dependency: `setup()` sets claudecode.nvim up with this plugin as its
   terminal and each diff in a tab of its own, taking claudecode.nvim's own
   options under `claudecode = { … }`.
+- The README shows the install with Neovim 0.12's own `vim.pack` as well as
+  lazy.nvim: `vim.pack.add()` for both plugins, then `setup()`.
 - `setup()` maps claudecode.nvim's commands to the keys its README suggests —
   `<leader>ac` to open Claude, `<leader>as` to send a selection, `<leader>aa` /
   `<leader>ad` to accept or deny a diff, and the rest. `keys` replaces, drops or
