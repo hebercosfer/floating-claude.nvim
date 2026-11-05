@@ -180,6 +180,31 @@ describe("demo", function()
       vim.o.columns, vim.o.lines = columns, lines
     end)
 
+    -- What the stand-in posts is logged the way the listener logs what a real
+    -- Claude posts, so the tour can open the events view on something true.
+    it("logs what its stand-in posts, as Claude Code would send it", function()
+      local columns, lines = vim.o.columns, vim.o.lines
+      vim.o.columns, vim.o.lines = 120, 40
+      local session = require("floating-claude.hooks.session")
+
+      demo.start()
+      tui.prompt("Explain the debounce")
+      tui.say("Hello there.")
+      local log
+      session.log(function(result)
+        log = result
+      end)
+      assert.equals(2, log.received)
+      assert.equals("UserPromptSubmit", log.entries[1].event)
+      assert.equals("forwarded", log.entries[1].fate)
+      assert.equals("Explain the debounce", log.entries[1].payload.prompt)
+      assert.equals("MessageDisplay", log.entries[2].payload.hook_event_name)
+      assert.equals("Hello there.", log.entries[2].payload.delta)
+
+      demo.stop()
+      vim.o.columns, vim.o.lines = columns, lines
+    end)
+
     it("brings a hidden Claude back when it asks you something", function()
       local columns, lines = vim.o.columns, vim.o.lines
       vim.o.columns, vim.o.lines = 120, 40

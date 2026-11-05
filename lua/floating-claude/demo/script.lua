@@ -22,6 +22,10 @@ local PROMPT = "why does the float wait before it comes back?"
 
 local TOOL = { "Running 2 shell commands", 'rg -n "restore_idle_ms" lua/floating-claude' }
 
+-- The tool Claude moves on to once it has answered, so the corner can show the
+-- answer with the tool running under it.
+local NEXT_TOOL = { "Checking the default", 'rg -n "restore_idle_ms =" lua/floating-claude' }
+
 local ANSWER = "From the corner, the float comes back only once Claude has been idle for a "
   .. "sustained stretch, and `restore_idle_ms` is how long. That debounce is the whole trick: the "
   .. "lull between a diff being resolved and Claude picking the work back up never lasts long "
@@ -69,6 +73,7 @@ end
 function M.build()
   local key = config.options.keymaps.minimize or ":FloatingClaudeToggle"
   local hide = config.options.keymaps.hide or ":FloatingClaudeHide"
+  local events = config.options.keymaps.events or ":FloatingClaudeEvents"
 
   return {
     {
@@ -128,10 +133,10 @@ function M.build()
       title = "The corner",
       lines = {
         "The title carries what Claude is doing — glyph, verb, elapsed, tokens — which leaves "
-          .. "the body for what Claude is saying: the opening sentence of the newest thing it "
-          .. "said, taken from the events Claude Code reports rather than read off its screen.",
-        "The `⎿` of a running tool call flickers amber while it runs. Nothing else moves; the "
-          .. "words beside it would be unreadable if they did.",
+          .. "the body for what Claude is saying: the opening sentence of its latest message, "
+          .. "taken from the events Claude Code reports rather than read off its screen.",
+        "When Claude moves on, its words stay and the tool it runs appears under them, its `⎿` "
+          .. "flickering amber while it runs — `notification.content`.",
       },
       beats = {
         {
@@ -140,8 +145,14 @@ function M.build()
             tui.say(ANSWER)
           end,
         },
+        {
+          5000,
+          function()
+            tui.tool(NEXT_TOOL[1], NEXT_TOOL[2])
+          end,
+        },
       },
-      hold_ms = 9000,
+      hold_ms = 10000,
     },
 
     {
@@ -207,8 +218,8 @@ function M.build()
         "The corner followed the diff into its own tab, still reporting.",
       },
       hint = "`a` to accept, `r` to reject — a real one takes `:ClaudeCodeDiffAccept` and "
-        .. "`:ClaudeCodeDiffDeny`, which claudecode.nvim's own example config binds to "
-        .. "`<leader>aa` and `<leader>ad`. Nothing is written either way.",
+        .. "`:ClaudeCodeDiffDeny`, which `setup()` maps to `<leader>aa` and `<leader>ad`. "
+        .. "Nothing is written either way.",
       -- The one beat with no blank left at the top of the screen.
       foot = true,
       enter = function()
@@ -276,6 +287,29 @@ function M.build()
         terminal.minimize()
       end,
       hold_ms = 9000,
+    },
+
+    {
+      title = "What it heard",
+      lines = {
+        ("`%s` opens what the plugin heard from Claude, as Claude Code sent it — the "):format(
+          events
+        ) .. "turn you just watched, event by event, long values cut.",
+        "It lives in memory only: the last `hooks.keep` events, cleared when Claude exits. The "
+          .. "session's token is never among them.",
+      },
+      enter = function()
+        require("floating-claude.events_view").open()
+      end,
+      exit = function()
+        for _, win in ipairs(vim.api.nvim_list_wins()) do
+          local name = vim.api.nvim_buf_get_name(vim.api.nvim_win_get_buf(win))
+          if name == "floating-claude://events" and #vim.api.nvim_list_wins() > 1 then
+            vim.api.nvim_win_close(win, true)
+          end
+        end
+      end,
+      hold_ms = 10000,
     },
 
     {
