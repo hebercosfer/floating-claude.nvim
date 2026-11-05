@@ -334,11 +334,13 @@ function M.info()
   }
 end
 
---- The listener's transparency log; nil without a listener.
+--- The listener's transparency log; nil without a listener. `counts` asks for
+--- the numbers alone.
 ---@param cb fun(log: floating_claude.Log|nil)
-function M.log(cb)
+---@param opts { counts: boolean }|nil
+function M.log(cb, opts)
   if S.listener then
-    S.listener.log(cb)
+    S.listener.log(cb, opts)
   else
     cb(nil)
   end

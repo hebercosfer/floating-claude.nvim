@@ -26,7 +26,7 @@ local LUA_DIR = vim.fn.fnamemodify(debug.getinfo(1, "S").source:sub(2), ":p:h:h:
 ---@field port integer
 ---@field received integer The thread's count, as of its last ring or log.
 ---@field set_mode fun(mode: "float"|"corner"|"hidden")
----@field log fun(cb: fun(log: floating_claude.Log))
+---@field log fun(cb: fun(log: floating_claude.Log), opts: { counts: boolean }|nil)
 ---@field stop fun()
 
 ---@param opts { token: string, keep: integer, on_record: fun(rec: floating_claude.Record), on_ring: fun(records: floating_claude.Record[], received: integer) }
@@ -125,9 +125,10 @@ function M.start(opts)
   function self.set_mode(mode)
     send("mode", mode)
   end
-  function self.log(cb)
+  -- `counts` leaves the entries out: the numbers alone, for :checkhealth.
+  function self.log(cb, log_opts)
     table.insert(log_waiters, cb)
-    send("log", "")
+    send("log", log_opts and log_opts.counts and "counts" or "")
   end
   return self
 end

@@ -97,7 +97,7 @@ end
 --   * minimized + Claude settles idle -> restore (Claude is now waiting for
 --     the user or done), UNLESS a diff is still up (review that);
 --   * hidden + Claude settles idle    -> the corner, so you hear about it
---     without the float landing on your work.
+--     without the float landing on your work (unless show_hidden = false).
 -- "Busy" = actively working OR a diff on screen.
 --
 -- Restore waits for SUSTAINED idle (`restore_idle_ms`) after a busy->idle
@@ -114,7 +114,7 @@ end
 function M.start(handlers)
   M.stop()
   local opts = config.options.auto
-  if not opts.minimize_on_diff and not opts.restore_on_input then
+  if not opts.minimize_on_diff and not opts.restore_on_input and not opts.show_hidden then
     return
   end
   state.was_busy = false
@@ -130,7 +130,12 @@ function M.start(handlers)
       local has_diff, mode = M.diff_step(handlers, true)
       local busy = has_diff or parser.is_working()
 
-      if mode ~= "float" and opts.restore_on_input then
+      -- The corner answers to restore_on_input, a hidden Claude to
+      -- show_hidden. The screen cannot tell a request from a finished turn,
+      -- so here either level acts on Claude settling.
+      local comes_back = (mode == "corner" and opts.restore_on_input)
+        or (mode == "hidden" and opts.show_hidden)
+      if comes_back then
         -- Come back only after Claude has been idle long enough to be sure
         -- it is waiting for input / done -- not during the lull right
         -- after a diff is resolved (Claude resumes within that window
