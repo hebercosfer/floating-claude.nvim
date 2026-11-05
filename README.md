@@ -96,8 +96,49 @@ require("floating-claude").setup()
 ```
 
 `vim.pack.add()` clones both on the first start, asking you to confirm, and puts
-them on the runtimepath, so `setup()` can follow straight away. It takes the
-same options as `opts` above. `vim.pack.update()` updates both.
+them on the runtimepath, so `setup()` can follow straight away. `vim.pack.update()`
+updates both.
+
+`setup()` takes the same table as `opts` above — every option under
+[Configuration](#configuration), plus `keys` and `claudecode`. Here with a few
+of them set, and floating-claude kept to tagged releases:
+
+```lua
+vim.pack.add({
+  -- claudecode.nvim tags rarely; follow its main branch, the default.
+  "https://github.com/coder/claudecode.nvim",
+  -- Follow floating-claude's tagged releases rather than its main branch.
+  {
+    src = "https://github.com/hebercosfer/floating-claude.nvim",
+    version = vim.version.range("*"),
+  },
+})
+
+require("floating-claude").setup({
+  -- floating-claude's own options.
+  float = { width = 0.9, height = 0.9 },
+  notification = { content = "messages" }, -- Claude's words only in the corner
+  auto = { show_hidden = "idle" }, -- bring a hidden Claude back after every turn
+
+  -- claudecode.nvim's commands on keys: drop one default, add one of your own.
+  keys = {
+    { "<leader>aa", false },
+    {
+      "<leader>an",
+      function()
+        require("floating-claude").toggle_mini()
+      end,
+      desc = "Minimize Claude",
+    },
+  },
+
+  -- claudecode.nvim's own options, on top of what the float needs from it.
+  claudecode = {
+    terminal_cmd = "~/.claude/local/claude",
+    diff_opts = { layout = "horizontal" },
+  },
+})
+```
 
 ### Keys
 
