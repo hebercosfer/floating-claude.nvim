@@ -11,10 +11,13 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-05
+
 Claude is heard through its own events instead of read off its screen. The
 corner's words no longer come from scraping the TUI, so box lines, tool traces
 and the `/diff` panel have nowhere to leak in from, and a stuck "working" has
-no status-line misread to come from.
+no status-line misread to come from. floating-claude can also be the one plugin
+you configure now: `setup()` sets claudecode.nvim up and maps its commands.
 
 ### Added
 
@@ -72,6 +75,13 @@ no status-line misread to come from.
   claudecode.nvim's dependency works as before. Called first by other means, it
   sets claudecode.nvim up itself; pass `claudecode = false` to keep doing that
   by hand. `keys = false` keeps the new mappings off.
+
+### Compatibility
+
+- Neovim 0.11+
+- claudecode.nvim `main` @ `af04fbf` (v0.3.0 + 142); minimum 0.2.0
+- Claude Code CLI 2.1.318; minimum 2.1.0, and 2.1.301 to be heard through its
+  hooks
 
 ## [0.4.0] - 2026-10-12
 
@@ -337,7 +347,8 @@ First release.
 - claudecode.nvim `main` @ `2390c6e` (v0.3.0 + 53); minimum 0.2.0
 - Claude Code CLI 2.1.220; minimum 2.1.0
 
-[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.3.0...v0.4.0
 [0.3.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/hebercosfer/floating-claude.nvim/compare/v0.1.0...v0.2.0

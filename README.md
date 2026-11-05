@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml/badge.svg)](https://github.com/hebercosfer/floating-claude.nvim/actions/workflows/ci.yml)
 
-> **For those who read the code, we salute you!** There is no API for "what is
-> Claude doing right now". This plugin finds out by squinting at a terminal
-> buffer, hunting for a spinning asterisk next to a number followed by the
-> letter s. That's it. That's the mechanism. Enjoy `parser.lua`, and mind the
-> box-drawing glyphs.
+> **For those who read the code, we salute you!** For a long time there was no
+> API for "what is Claude doing right now", so this plugin found out by squinting
+> at a terminal buffer, hunting for a spinning asterisk next to a number followed
+> by the letter s. Now Claude Code tells it, through its hooks. The squinting
+> stays, for the title's spinner and for any CLI too old to say. Enjoy
+> `parser.lua`, and mind the box-drawing glyphs.
 
 A floating-window terminal provider for
 [claudecode.nvim](https://github.com/coder/claudecode.nvim) improving the
@@ -17,20 +18,22 @@ out of your way on its own: when Claude proposes an edit, the float collapses
 into a small corner notification so the diff is visible, and it comes back the
 moment the diff closes.
 
-https://github.com/user-attachments/assets/841ad723-f291-4ac7-b7fd-f6034bf92a98
+https://github.com/user-attachments/assets/77ada38a-06f6-47ba-8af7-f217b2cdd923
 
 ## See it move
 
 That recording is `:FloatingClaudeDemo auto` running unattended — the float, the
-corner it collapses into, both shapes of the notification body, an edit
-approval it gets out of the way for and comes back from, and the corner dragged
-aside, hidden, and back when Claude is waiting.
+corner it collapses into with what Claude says and the tool it runs under it,
+both shapes of the notification body, an edit approval it gets out of the way
+for and comes back from, the events the plugin heard along the way, and the
+corner dragged aside, hidden, and back when Claude asks you something.
 
 `:FloatingClaudeDemo` runs the same tour interactively, pausing to ask you to
 click the parts that are about clicking.
 
 The Claude in that float is a scripted stand-in: no CLI, no network, nothing
-typed. Everything around it is the real plugin reading a fake terminal, so the
+typed. Everything around it is the real plugin, hearing the events the stand-in
+posts and reading its fake terminal, so the
 tour runs with neither claudecode.nvim nor the Claude Code CLI installed, and it
 comes out the same way twice. It borrows the plugin's defaults while it runs and
 hands your own settings back at the end; `:FloatingClaudeDemo stop` ends it
@@ -579,7 +582,7 @@ Neovim; only what genuinely needs the higher floor is `main`-only.
 
 | Neovim | Plugin line | Branch              | Pin with             |
 | ------ | ----------- | ------------------- | -------------------- |
-| 0.11+  | 0.4.x       | `main`              | `version = "~0.4.0"` |
+| 0.11+  | 0.5.x       | `main`              | `version = "~0.5.0"` |
 | 0.10   | 0.1.x       | `support/nvim-0.10` | `version = "~0.1.0"` |
 
 ```lua
@@ -633,22 +636,29 @@ does not fail the run.
 
 ## Layout
 
-| File                | Role                                                    |
-| ------------------- | ------------------------------------------------------- |
-| `provider.lua`      | The claudecode.nvim terminal provider interface         |
-| `terminal.lua`      | The big float, the job, minimize/restore                |
-| `notification.lua`  | The corner notification window                          |
-| `watcher.lua`       | The poll loop driving auto-minimize/restore             |
-| `parser.lua`        | Scraping Claude's state out of the terminal buffer      |
-| `state.lua`         | Shared buffer/window handles                            |
-| `config.lua`        | Defaults and `setup()`                                  |
-| `keys.lua`          | The keys `setup()` maps to claudecode.nvim's commands   |
-| `compat.lua`        | Supported claudecode.nvim / Claude Code versions        |
-| `version.lua`       | This plugin's own version                               |
-| `tests/`            | plenary specs and their minimal init                    |
-| `health.lua`        | `:checkhealth floating-claude`                          |
-| `demo/`             | The guided tour: a scripted Claude, a stand-in diff      |
-| `docs/`             | The recording at the top of this file, and how to remake it |
+| File                | Role                                                            |
+| ------------------- | --------------------------------------------------------------- |
+| `init.lua`          | `setup()`, which sets claudecode.nvim up too, and the Lua API   |
+| `config.lua`        | Defaults and how options merge                                  |
+| `provider.lua`      | The claudecode.nvim terminal provider interface                 |
+| `terminal.lua`      | The big float, the job, minimize/restore                        |
+| `notification.lua`  | The corner notification window                                  |
+| `hooks/`            | Hearing Claude: the listener thread, its wire format, the session |
+| `attention.lua`     | What brings Claude back, and when                               |
+| `watcher.lua`       | Diffs, and the poll loop when reading the screen                |
+| `parser.lua`        | Reading Claude's screen: the status line, and the fallback      |
+| `events_view.lua`   | `:FloatingClaudeEvents`, what the plugin heard                  |
+| `keys.lua`          | The keys `setup()` maps to claudecode.nvim's commands           |
+| `keymaps.lua`       | floating-claude's own keys                                      |
+| `drag.lua`          | Dragging the corner with the mouse                              |
+| `highlights.lua`    | The corner's highlight groups                                   |
+| `state.lua`         | Shared buffer/window handles                                    |
+| `compat.lua`        | Supported claudecode.nvim / Claude Code versions                |
+| `version.lua`       | This plugin's own version                                       |
+| `health.lua`        | `:checkhealth floating-claude`                                  |
+| `demo/`             | The guided tour: a scripted Claude, a stand-in diff             |
+| `tests/`            | plenary specs and their minimal init                            |
+| `docs/`             | The recording at the top of this file, and how to remake it     |
 
 ## License
 
