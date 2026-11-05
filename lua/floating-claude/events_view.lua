@@ -93,21 +93,24 @@ function M.lines(info, log)
     table.insert(out, "Claude Code is not running.")
     return out
   end
-  if not info.port then
-    if not info.active then
-      table.insert(
-        out,
-        ("Not listening: %s. The plugin reads Claude's screen instead."):format(
-          info.reason or "no reason given"
-        )
+  if not info.port and not info.active then
+    table.insert(
+      out,
+      ("Not listening: %s. The plugin reads Claude's screen instead."):format(
+        info.reason or "no reason given"
       )
-    else
-      table.insert(out, "Hearing the tour's scripted events; no listener is running.")
-    end
+    )
     return out
   end
 
-  if info.active then
+  if not info.port then
+    -- The tour: its stand-in posts what a real Claude Code would, and the
+    -- session keeps it the way the listener would.
+    table.insert(
+      out,
+      "Hearing the tour's scripted events: what Claude Code would post to the listener, kept the same way. No listener is running, and no settings file is written."
+    )
+  elseif info.active then
     table.insert(
       out,
       ("Listening on 127.0.0.1:%d for: %s"):format(info.port, table.concat(info.events, ", "))
@@ -123,12 +126,14 @@ function M.lines(info, log)
       )
     )
   end
-  table.insert(
-    out,
-    ("Settings file: %s (it holds this session's token; the token is not shown here)"):format(
-      info.settings_path or "?"
+  if info.port then
+    table.insert(
+      out,
+      ("Settings file: %s (it holds this session's token; the token is not shown here)"):format(
+        info.settings_path or "?"
+      )
     )
-  )
+  end
   if info.keep > 0 then
     table.insert(
       out,
