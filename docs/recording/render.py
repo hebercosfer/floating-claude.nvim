@@ -44,11 +44,28 @@ FALLBACK_DIR = os.environ.get("FC_FALLBACK_DIR", "/usr/share/fonts/Adwaita")
 FALLBACK = {False: "AdwaitaMono-Regular.ttf", True: "AdwaitaMono-Bold.ttf"}
 FALLBACK_CHARS = frozenset("\u23bf\u2722\u273b\u273d\u29c9")
 
+# Lines and corners a terminal draws itself, edge to edge in the cell, rather
+# than taking from the font: that is what makes them join without a seam. The
+# font's own glyphs are thinner and soft at the joins.
+BOX_CHARS = frozenset("─━│╭╮╰╯▏╎")
+
 SGR = re.compile(r"\x1b\[([0-9;:]*)m")
 OSC = re.compile(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)")
 
-DEFAULT_FG = (0xE0, 0xE2, 0xEA)
-DEFAULT_BG = (0x14, 0x16, 0x1B)
+
+def hex_colour(value, fallback):
+    if not value:
+        return fallback
+    value = value.lstrip("#")
+    return tuple(int(value[i : i + 2], 16) for i in (0, 2, 4))
+
+
+# What the terminal paints where Neovim asks for its default colours. Recording
+# in a config with a colourscheme, set these to its Normal highlight: Neovim
+# writes that background out on some rows and leaves others to the terminal,
+# and a mismatch shows as bands behind the code.
+DEFAULT_FG = hex_colour(os.environ.get("FC_FG"), (0xE0, 0xE2, 0xEA))
+DEFAULT_BG = hex_colour(os.environ.get("FC_BG"), (0x14, 0x16, 0x1B))
 
 
 def xterm256(n):
@@ -161,10 +178,69 @@ def parse_frame(text, cols, rows):
     return grid
 
 
+def box(d, c, col, row, cw, ch, fill):
+    """Draw a box-drawing character the way a terminal does: strokes from the
+    cell's centre out to its edges, at a thickness that scales with the cell."""
+    t = max(1, round(cw / 7))
+    x0, x1 = round(col * cw), round((col + 1) * cw)
+    y0, y1 = row * ch, (row + 1) * ch
+    lx = round(col * cw + cw / 2 - t / 2)  # the vertical stroke's left pixel
+    ly = y0 + (ch - t) // 2  # the horizontal stroke's top pixel
+    # The video keeps one colour per 2x2 block of pixels. A 2px stroke that
+    # straddles two blocks has its colour averaged with the background's on
+    # both sides; started on an even pixel, it fills its blocks exactly.
+    if t % 2 == 0:
+        lx -= lx % 2
+        ly -= ly % 2
+    r = max(2, round(cw / 2))
+
+    # A corner's straight leg can come out empty once the stroke is snapped
+    # to an even pixel -- the arc already reaches the cell's edge.
+    def rect(b, fill):
+        if b[2] >= b[0] and b[3] >= b[1]:
+            d.rectangle(b, fill=fill)
+
+    if c == "─":
+        rect([x0, ly, x1 - 1, ly + t - 1], fill=fill)
+    elif c == "━":
+        rect([x0, ly - t // 2, x1 - 1, ly + t - 1 + (t + 1) // 2], fill=fill)
+    elif c == "│":
+        rect([lx, y0, lx + t - 1, y1 - 1], fill=fill)
+    elif c == "╎":
+        gap = max(1, ch // 8)
+        mid = y0 + ch // 2
+        rect([lx, y0 + gap // 2, lx + t - 1, mid - gap // 2 - 1], fill=fill)
+        rect([lx, mid + gap // 2, lx + t - 1, y1 - gap // 2 - 1], fill=fill)
+    elif c == "▏":
+        rect([x0, y0, x0 + max(1, round(cw / 8)) - 1, y1 - 1], fill=fill)
+    elif c == "╭":
+        d.arc([lx, ly, lx + 2 * r, ly + 2 * r], 180, 270, fill=fill, width=t)
+        rect([lx + r, ly, x1 - 1, ly + t - 1], fill=fill)
+        rect([lx, ly + r, lx + t - 1, y1 - 1], fill=fill)
+    elif c == "╮":
+        right = lx + t - 1
+        d.arc([right - 2 * r, ly, right, ly + 2 * r], 270, 360, fill=fill, width=t)
+        rect([x0, ly, right - r, ly + t - 1], fill=fill)
+        rect([lx, ly + r, right, y1 - 1], fill=fill)
+    elif c == "╰":
+        bottom = ly + t - 1
+        d.arc([lx, bottom - 2 * r, lx + 2 * r, bottom], 90, 180, fill=fill, width=t)
+        rect([lx + r, ly, x1 - 1, bottom], fill=fill)
+        rect([lx, y0, lx + t - 1, bottom - r], fill=fill)
+    elif c == "╯":
+        right, bottom = lx + t - 1, ly + t - 1
+        d.arc([right - 2 * r, bottom - 2 * r, right, bottom], 0, 90, fill=fill, width=t)
+        rect([x0, ly, right - r, bottom], fill=fill)
+        rect([lx, y0, right, bottom - r], fill=fill)
+
+
 def draw(grid, cols, rows, fonts, cw, ch, pad):
     alt = fonts["fallback"]
-    img = Image.new("RGB", (cols * cw, rows * ch), DEFAULT_BG)
+    img = Image.new("RGB", (round(cols * cw), rows * ch), DEFAULT_BG)
     d = ImageDraw.Draw(img)
+    # Every background first, then every glyph: a glyph that hangs below its
+    # cell -- the foot of Claude's `⎿` -- would otherwise be painted over by the
+    # next row's background, and read as a plain bar.
     for y, line in enumerate(grid):
         x = 0
         while x < cols:
@@ -176,14 +252,21 @@ def draw(grid, cols, rows, fonts, cw, ch, pad):
             while run < cols and line[run] is not None and line[run][2] == c[2]:
                 run += 1
             if c[2] != DEFAULT_BG:
-                d.rectangle([x * cw, y * ch, run * cw - 1, (y + 1) * ch - 1], fill=c[2])
+                d.rectangle(
+                    [round(x * cw), y * ch, round(run * cw) - 1, (y + 1) * ch - 1], fill=c[2]
+                )
             x = run
+    for y, line in enumerate(grid):
         # One draw call per run of identical style: 5000-odd cells a frame is
         # far too many individual text calls.
         x = 0
         while x < cols:
             c = line[x]
             if c is None or c[0] == " ":
+                x += 1
+                continue
+            if c[0] in BOX_CHARS:
+                box(d, c[0], x, y, cw, ch, c[1])
                 x += 1
                 continue
             if c[0] in FALLBACK_CHARS:
@@ -197,7 +280,8 @@ def draw(grid, cols, rows, fonts, cw, ch, pad):
             run = []
             while (x < cols and line[x] is not None
                    and (line[x][1], line[x][3], line[x][4]) == key
-                   and line[x][0] not in FALLBACK_CHARS):
+                   and line[x][0] not in FALLBACK_CHARS
+                   and line[x][0] not in BOX_CHARS):
                 run.append(line[x][0])
                 x += 1
             d.text((start * cw, y * ch + pad), "".join(run).rstrip(),
@@ -220,7 +304,12 @@ def font(directory, name, size):
 def metrics(size):
     fonts = {k: font(FONT_DIR, v, size) for k, v in FONTS.items()}
     fonts["fallback"] = {b: font(FALLBACK_DIR, v, size) for b, v in FALLBACK.items()}
-    cw = round(fonts[(False, False)].getlength("M"))
+    # The font's exact advance, not a rounded one. Runs of text are drawn as one
+    # string, which the font lays out at its own advance (7.203px at size 12):
+    # with the cell rounded to 7px a 128-cell run ended 26px right of where the
+    # cell grid put it, so the float's right border landed in a different column
+    # on every row.
+    cw = fonts[(False, False)].getlength("M")
     ch = round(size * 1.32)
     return fonts, cw, ch, (ch - size) // 2
 
@@ -232,7 +321,7 @@ def main():
 
     fonts, cw, ch, pad = metrics(size)
     names = sorted(glob.glob(os.path.join(src, "*.txt")))[first : last + 1 : step]
-    print(f"{len(names)} frames -> {cols * cw}x{rows * ch}, cell {cw}x{ch}", flush=True)
+    print(f"{len(names)} frames -> {round(cols * cw)}x{rows * ch}, cell {cw:.3f}x{ch}", flush=True)
 
     images, times = [], []
     for i, name in enumerate(names):
