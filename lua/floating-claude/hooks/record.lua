@@ -43,6 +43,18 @@ M.TEXT_CAP = 2000
 -- How many records the thread keeps for a replay when the corner opens.
 M.RING_MAX = 64
 
+--- Add a record to the turn's ring, the oldest out once it is full -- all but
+--- the prompt that opened the turn, which is what the title's clock counts
+--- from: a long turn would otherwise replay with its clock stuck at 0s.
+---@param ring floating_claude.Record[]
+---@param rec floating_claude.Record
+function M.push(ring, rec)
+  table.insert(ring, rec)
+  while #ring > M.RING_MAX do
+    table.remove(ring, ring[1].event == "UserPromptSubmit" and 2 or 1)
+  end
+end
+
 --- Epoch milliseconds. Both sides of the pipe use this one clock, so a
 --- record's `at` and the main loop's "now" can be compared.
 ---@return integer

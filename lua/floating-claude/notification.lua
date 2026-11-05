@@ -357,8 +357,13 @@ end
 local NEEDS_YOU = { PermissionRequest = true, Elicitation = true, StopFailure = true }
 
 -- A finished turn's frozen marker ("Cooked for 1m 40s"), read off the screen
--- once per Stop rather than on every redraw.
-local done_marker = {}
+-- once per Stop rather than on every redraw. Claude draws it a moment after
+-- Stop arrives (about 100ms, measured live), and an idle corner has nothing
+-- else to redraw it for, so a read that finds none tries again a few times.
+-- It starts with a count of its own: a corner drawn before Claude's first
+-- event has no event to key it on.
+local done_marker = { tries = 0 }
+local MARKER_RETRY_MS, MARKER_TRIES = 150, 5
 
 -- What the hooks say, in the shape render() wants: the status the title and
 -- the waiting line are made from, and the body's one entry. The screen is
@@ -376,7 +381,19 @@ local function from_session(raw)
     end
   elseif st.phase == "idle" then
     if done_marker.key ~= st.last_event_at then
-      done_marker = { key = st.last_event_at, value = parser.status().done }
+      done_marker = { key = st.last_event_at, tries = 0 }
+    end
+    if done_marker.value == nil and done_marker.tries < MARKER_TRIES then
+      done_marker.tries = done_marker.tries + 1
+      done_marker.value = parser.status().done
+      if done_marker.value == nil then
+        local key = done_marker.key
+        vim.defer_fn(function()
+          if done_marker.key == key then
+            M.refresh()
+          end
+        end, MARKER_RETRY_MS)
+      end
     end
     status = { working = false, done = done_marker.value }
   else

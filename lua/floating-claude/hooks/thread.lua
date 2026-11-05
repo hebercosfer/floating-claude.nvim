@@ -90,10 +90,7 @@ function M.run(write_fd, read_fd, token, opts_json)
       if rec.event == "UserPromptSubmit" and not rec.synthetic then
         ring = {}
       end
-      table.insert(ring, rec)
-      while #ring > record.RING_MAX do
-        table.remove(ring, 1)
-      end
+      record.push(ring, rec)
       send("record", vim.json.encode(rec))
       fate = "forwarded"
     end
@@ -209,7 +206,12 @@ function M.run(write_fd, read_fd, token, opts_json)
           send("ring", vim.json.encode({ records = ring, received = received }))
         end
       elseif f.kind == "log" then
-        send("log", vim.json.encode({ received = received, rejected = rejected, entries = log }))
+        -- "counts" asks for the numbers alone, without the payloads.
+        local entries = f.payload == "counts" and {} or log
+        send(
+          "log",
+          vim.json.encode({ received = received, rejected = rejected, entries = entries })
+        )
       elseif f.kind == "stop" then
         -- Everything this loop owns: the server, any connection still open,
         -- both pipes. uv.run() returns once they are closed.
