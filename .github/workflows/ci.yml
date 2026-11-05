@@ -22,7 +22,7 @@ jobs:
       matrix:
         neovim:
           - v0.11.7 # the floor the README promises
-          - v0.12.4
+          - v0.12.6
           - nightly
 
     steps:

@@ -40,15 +40,17 @@ early.
 
 - Neovim 0.11+
 - [coder/claudecode.nvim](https://github.com/coder/claudecode.nvim) — `main`,
-  tested at [`2390c6e`](https://github.com/coder/claudecode.nvim/commit/2390c6e45c4789072c293ac69de051d169668b29)
-  (v0.3.0 + 53, 2026-06-25); v0.2.0 is the floor
-- Claude Code CLI 2.1+ — tested at 2.1.296
+  tested at [`af04fbf`](https://github.com/coder/claudecode.nvim/commit/af04fbf9c27c5c06b4d1ff022b551aa94e1df4aa)
+  (v0.3.0 + 142, 2026-11-02); v0.2.0 is the floor
+- Claude Code CLI 2.1+ — tested at 2.1.318; heard through its hooks from 2.1.301
 
 Both are hard requirements, not suggestions: this plugin implements
-claudecode.nvim's terminal provider interface and reads Claude's state out of
-its rendered TUI, so an older claudecode.nvim (no `terminal.ensure_visible`) or
-an older CLI (a different prompt/status area) leaves the auto-minimize silently
-not working. See [Compatibility](#compatibility).
+claudecode.nvim's terminal provider interface and follows what Claude Code
+reports through its hooks, reading its screen for the title's status line —
+and for everything on a CLI older than 2.1.301. So an older claudecode.nvim (no
+`terminal.ensure_visible`) or a CLI older than 2.1 (a different prompt and
+status area) leaves the auto-minimize silently not working. See
+[Compatibility](#compatibility).
 
 On an older Neovim? Previous floors keep their own maintained lines — see
 [Older Neovim](#older-neovim).
@@ -514,11 +516,11 @@ it:
 The supported pair is pinned in `compat.lua` and checked the first time Claude
 is spawned; `:checkhealth floating-claude` reports what you actually have.
 
-| Dependency      | Minimum | Tested against                   |
-| --------------- | ------- | -------------------------------- |
-| Neovim          | 0.11    | 0.12.4                           |
-| claudecode.nvim | 0.2.0   | `main` @ `2390c6e` (v0.3.0 + 53) |
-| Claude Code CLI | 2.1.0   | 2.1.296                          |
+| Dependency      | Minimum | Tested against                    |
+| --------------- | ------- | --------------------------------- |
+| Neovim          | 0.11    | 0.12.6                            |
+| claudecode.nvim | 0.2.0   | `main` @ `af04fbf` (v0.3.0 + 142) |
+| Claude Code CLI | 2.1.0   | 2.1.318                           |
 
 From claudecode.nvim we need `terminal.ensure_visible` — what lets a minimized
 Claude *stay* minimized while you resolve a diff — and the `claudecode.diff`
@@ -536,7 +538,7 @@ screen, as above.
 A mismatch is a warning, never a hard failure: the float still works, the
 automatic minimize/restore is what degrades. To freeze the tested pair instead
 of tracking `main`, pin it in your plugin spec
-(`{ "coder/claudecode.nvim", commit = "2390c6e" }`).
+(`{ "coder/claudecode.nvim", commit = "af04fbf" }`).
 
 ## Versioning
 
@@ -626,7 +628,7 @@ the suite never depends on which version happens to be checked out. Claude Code
 is stubbed the same way, by a shell script that prints a version string.
 
 GitHub Actions runs the same `make test` on Neovim 0.11.7 (the floor above),
-0.12.4 and nightly, plus `stylua --check`. A nightly failure is reported but
+0.12.6 and nightly, plus `stylua --check`. A nightly failure is reported but
 does not fail the run.
 
 ## Layout
