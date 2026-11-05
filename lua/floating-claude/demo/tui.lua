@@ -20,16 +20,15 @@
 -- runs. The corner takes its words from those; the screen is read only for
 -- the live status line, as with the real thing.
 
-local record = require("floating-claude.hooks.record")
 local session = require("floating-claude.hooks.session")
 local state = require("floating-claude.state")
 
--- Post an event the way the listener would hand one over.
-local function post(rec)
-  if session.active() then
-    rec.at = record.now_ms()
-    session.inject(rec)
-  end
+-- Post an event in Claude Code's own shape. The session keeps it as the
+-- listener keeps one, which is what the events view shows during the tour.
+local function post(event)
+  event.session_id = "the-tour"
+  event.cwd = vim.fn.getcwd()
+  session.post_scripted(event)
 end
 
 ---@type uv
@@ -120,13 +119,13 @@ end
 --- The echo of your own prompt, which is where one turn begins.
 function M.prompt(text)
   table.insert(M.blocks, block("❯", text))
-  post({ event = "UserPromptSubmit", prompt = text, synthetic = false })
+  post({ hook_event_name = "UserPromptSubmit", prompt = text })
 end
 
 --- A paragraph of Claude's prose.
 function M.say(text)
   table.insert(M.blocks, block("●", text))
-  post({ event = "MessageDisplay", delta = text, final = false })
+  post({ hook_event_name = "MessageDisplay", delta = text, final = false })
 end
 
 --- Claude asking you something: no spinner while the question is up, and the
@@ -135,7 +134,7 @@ function M.ask(question)
   M.work = nil
   table.insert(M.blocks, block("●", question))
   post({
-    event = "PermissionRequest",
+    hook_event_name = "PermissionRequest",
     tool_name = "AskUserQuestion",
     tool_input = { questions = { { question = question } } },
   })
@@ -149,8 +148,8 @@ function M.tool(header, result)
   table.insert(lines, "  ⎿  " .. result)
   table.insert(M.blocks, lines)
   local call = { tool_name = "Bash", tool_input = { description = header, command = result } }
-  post(vim.tbl_extend("force", { event = "PreToolUse" }, call))
-  post(vim.tbl_extend("force", { event = "PostToolUse" }, call))
+  post(vim.tbl_extend("force", { hook_event_name = "PreToolUse" }, vim.deepcopy(call)))
+  post(vim.tbl_extend("force", { hook_event_name = "PostToolUse" }, vim.deepcopy(call)))
 end
 
 --- Start a turn. `verb` is the gerund Claude puts next to its spinner.
@@ -175,7 +174,7 @@ function M.finish(spent, summary)
   if summary then
     table.insert(M.blocks, block("●", summary))
   end
-  post({ event = "Stop", message = summary })
+  post({ hook_event_name = "Stop", last_assistant_message = summary })
 end
 
 --- Type into the input box, a character every TYPE_MS.

@@ -111,6 +111,27 @@ describe("the events view", function()
     assert.truthy(shown:find("Received 2, rejected 0.", 1, true))
   end)
 
+  it("shows the tour's scripted events the way it shows a listener's", function()
+    local info = vim.tbl_extend("force", LISTENING, { active = true })
+    info.port = nil
+    local shown = text(events_view.lines(info, {
+      received = 1,
+      rejected = 0,
+      entries = {
+        {
+          at = 0,
+          event = "UserPromptSubmit",
+          fate = "forwarded",
+          size = 60,
+          payload = { hook_event_name = "UserPromptSubmit", prompt = "hi" },
+        },
+      },
+    }))
+    assert.truthy(shown:find("Hearing the tour's scripted events", 1, true))
+    assert.truthy(shown:find("Received 1, rejected 0.", 1, true))
+    assert.truthy(shown:find('"prompt": "hi"', 1, true))
+  end)
+
   it("says when Claude is not running", function()
     local info = vim.tbl_extend("force", LISTENING, { running = false, active = false })
     assert.truthy(text(events_view.lines(info, nil)):find("Claude Code is not running.", 1, true))
