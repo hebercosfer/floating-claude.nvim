@@ -8,6 +8,10 @@
 #
 # Defaults produce the 140x38 capture the README's recording is made from.
 # Integer milliseconds throughout: bc is not everywhere.
+#
+# FC_OWN_CONFIG=1 runs the tour in your own Neovim config instead of init.lua,
+# for a recording in your colourscheme -- render it with FC_FG and FC_BG set to
+# its Normal colours. The README's recording is made that way.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -16,7 +20,7 @@ ROOT="$(cd "$HERE/../.." && pwd)"
 OUT="${1:-${XDG_CACHE_HOME:-$HOME/.cache}/floating-claude/record}"
 COLS="${2:-140}"
 ROWS="${3:-38}"
-TOTAL_MS="${4:-72000}"
+TOTAL_MS="${4:-125000}"
 SESSION=fc-record
 
 command -v tmux >/dev/null || { echo "tmux is required" >&2; exit 1; }
@@ -31,9 +35,18 @@ tmux set-option -t $SESSION default-terminal "tmux-256color"
 tmux set-option -t $SESSION -as terminal-features ",*:RGB"
 tmux set-option -t $SESSION status off
 
-tmux send-keys -t $SESSION \
-  "clear && nvim -u $HERE/init.lua -i NONE lua/floating-claude/watcher.lua" Enter
-sleep 3
+if [ "${FC_OWN_CONFIG:-}" = 1 ]; then
+  tmux send-keys -t $SESSION "clear && nvim -i NONE lua/floating-claude/watcher.lua" Enter
+  sleep 6
+  # A lazy.nvim config may load this plugin on an event; load it now.
+  tmux send-keys -t $SESSION \
+    ':lua pcall(function() require("lazy").load({ plugins = { "floating-claude.nvim" } }) end)' Enter
+  sleep 1
+else
+  tmux send-keys -t $SESSION \
+    "clear && nvim -u $HERE/init.lua -i NONE lua/floating-claude/watcher.lua" Enter
+  sleep 3
+fi
 tmux send-keys -t $SESSION ":FloatingClaudeDemo auto" Enter
 
 start=$(date +%s%3N)
