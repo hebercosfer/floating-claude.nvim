@@ -93,24 +93,36 @@ function M.lines(info, log)
     table.insert(out, "Claude Code is not running.")
     return out
   end
-  if not info.active then
-    table.insert(
-      out,
-      ("Not listening: %s. The plugin reads Claude's screen instead."):format(
-        info.reason or "no reason given"
-      )
-    )
-    return out
-  end
   if not info.port then
-    table.insert(out, "Hearing the tour's scripted events; no listener is running.")
+    if not info.active then
+      table.insert(
+        out,
+        ("Not listening: %s. The plugin reads Claude's screen instead."):format(
+          info.reason or "no reason given"
+        )
+      )
+    else
+      table.insert(out, "Hearing the tour's scripted events; no listener is running.")
+    end
     return out
   end
 
-  table.insert(
-    out,
-    ("Listening on 127.0.0.1:%d for: %s"):format(info.port, table.concat(info.events, ", "))
-  )
+  if info.active then
+    table.insert(
+      out,
+      ("Listening on 127.0.0.1:%d for: %s"):format(info.port, table.concat(info.events, ", "))
+    )
+  else
+    -- Fallen back to the screen mid-session. Claude was started pointing at
+    -- the listener, so it stays up and keeps hearing whatever does arrive.
+    table.insert(
+      out,
+      ("Reading Claude's screen: %s. The listener on 127.0.0.1:%d is still up, since Claude was started pointing at it; what it hears is below."):format(
+        info.reason or "no reason given",
+        info.port
+      )
+    )
+  end
   table.insert(
     out,
     ("Settings file: %s (it holds this session's token; the token is not shown here)"):format(
@@ -199,12 +211,12 @@ local function show(lines)
     vim.bo[buf].swapfile = false
     vim.api.nvim_buf_set_name(buf, NAME)
     vim.bo[buf].filetype = "floating-claude-events"
-    vim.keymap.set(
-      "n",
-      "q",
-      "<cmd>close<cr>",
-      { buffer = buf, nowait = true, desc = "Close the events view" }
-    )
+    vim.keymap.set("n", "q", function()
+      -- :close refuses the last window (E444); wipe the buffer there instead.
+      if not pcall(vim.cmd.close) then
+        vim.cmd.bwipeout()
+      end
+    end, { buffer = buf, nowait = true, desc = "Close the events view" })
   end
 
   vim.bo[buf].modifiable = true

@@ -96,7 +96,7 @@ function M.check()
     local listener_received, answered = 0, false
     require("floating-claude.hooks.session").log(function(log)
       listener_received, answered = log and log.received or 0, true
-    end)
+    end, { counts = true })
     vim.wait(500, function()
       return answered
     end, 10)
@@ -110,6 +110,13 @@ function M.check()
     health.info("hearing the tour's scripted events")
   else
     health.warn(("reading Claude's screen: %s"):format(info.reason or "no reason given"))
+    if info.port then
+      health.info(
+        ("the listener on 127.0.0.1:%d is still up, since Claude was started pointing at it (:FloatingClaudeEvents shows what it hears)"):format(
+          info.port
+        )
+      )
+    end
   end
 end
 

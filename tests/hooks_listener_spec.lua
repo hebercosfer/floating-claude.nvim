@@ -181,6 +181,29 @@ describe("the hooks listener", function()
       return #rings == 1
     end))
     assert.equals(64, #rings[1].records)
+    assert.equals("UserPromptSubmit", rings[1].records[1].event)
+    assert.equals("long", rings[1].records[1].prompt)
+  end)
+
+  -- :checkhealth wants the count, not the payloads.
+  it("answers a count without the events themselves", function()
+    start()
+    for _ = 1, 3 do
+      post.sync(l.port, "t", PRE)
+    end
+    assert.is_true(vim.wait(2000, function()
+      return #got == 3
+    end))
+    local log
+    l.log(function(result)
+      log = result
+    end, { counts = true })
+    assert.is_true(vim.wait(2000, function()
+      return log ~= nil
+    end))
+    assert.equals(3, log.received)
+    assert.same({}, log.entries)
+    assert.equals(3, #fetch_log().entries)
   end)
 
   it("keeps an event with a null inside a list", function()

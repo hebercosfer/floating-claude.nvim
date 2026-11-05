@@ -212,6 +212,37 @@ describe("watcher", function()
       )
       assert.equals(0, restored, "hidden came back as the full float")
     end)
+
+    it("stays hidden with show_hidden = false", function()
+      config.setup({ auto = { watch_ms = 20, restore_idle_ms = 60, show_hidden = false } })
+      terminal(WORKING)
+      watcher.start(handlers)
+      vim.wait(100)
+
+      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, FINISHED)
+
+      vim.wait(300, function()
+        return shown > 0
+      end, 20)
+      assert.equals(0, shown, "show_hidden = false brought Claude back")
+    end)
+
+    -- restore_on_input is about the corner; a hidden Claude answers to show_hidden.
+    it("still comes back with restore_on_input = false", function()
+      config.setup({ auto = { watch_ms = 20, restore_idle_ms = 60, restore_on_input = false } })
+      terminal(WORKING)
+      watcher.start(handlers)
+      vim.wait(100)
+
+      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, FINISHED)
+
+      assert.is_true(
+        vim.wait(1000, function()
+          return shown > 0
+        end, 20),
+        "restore_on_input = false kept a hidden Claude from coming back"
+      )
+    end)
   end)
 
   describe("once a diff closes", function()

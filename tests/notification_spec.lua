@@ -608,6 +608,29 @@ describe("notification", function()
       assert.same({ " ● Done.", " ❯ Waiting for you" }, body())
     end)
 
+    -- Claude draws a finished turn's frozen marker a moment after Stop
+    -- arrives (about 100ms, measured live), and an idle corner redraws on
+    -- nothing else.
+    it("picks up the finished turn's marker drawn after Stop", function()
+      terminal(IDLE)
+      prompt("Go")
+      notification.show()
+      session.inject({ event = "Stop", at = record.now_ms(), message = "Done." })
+      assert.same({ " ● Done.", " ❯ Waiting for you" }, body())
+      vim.api.nvim_buf_set_lines(state.buf, 0, -1, false, {
+        "● Done.",
+        "",
+        "✻ Cooked for 24s",
+        RULE,
+        "❯ ",
+        RULE,
+      })
+      assert.is_true(vim.wait(1000, function()
+        return body()[2] == " ❯ Waiting for you · Cooked for 24s"
+      end, 20))
+      assert.is_nil(state.mini_timer)
+    end)
+
     it("titles from the live status line", function()
       terminal({ "", "✽ Infusing… (8m 24s · ↓ 24.8k tokens)", RULE, "❯ ", RULE })
       prompt("Go")
