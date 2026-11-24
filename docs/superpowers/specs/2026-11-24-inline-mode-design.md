@@ -1,0 +1,378 @@
+# Inline mode: ask Claude about the code in front of you
+
+Design, 2026-11-24. Branch `feature/InlineMode`. Status: waiting for Heber's
+approval; nothing is built yet.
+
+## Why
+
+Talking to Claude about a few lines of code today means leaving them: open the
+float, type `@file#L12-14`, describe the change, then review the edit in a diff
+tab. Heber wants to ask from where the code is, with the exchange looking like
+part of the buffer, like Cursor's inline edit, but without the trade the existing
+inline plugins make.
+
+[float-claude.nvim](https://github.com/kova1max/float-claude.nvim) (MIT) and
+[claude-inline.nvim](https://github.com/AdamAugustinsky/claude-inline.nvim) both
+start a headless `claude -p` of their own for each chat (float-claude.nvim with
+no tools, no MCP and none of your settings), so the inline exchange happens
+outside your session. The difference wanted here is that it happens **in the
+session floating-claude is already running**: the same conversation, with the
+same context, tools, permissions and history, so the float shows the exchange
+too and you can carry on from either place.
+
+## Goals
+
+- Select lines (or use the cursor line), press a key, type an instruction in an
+  input that appears right under the code, and send it to the running Claude
+  session.
+- Show the exchange under the code as virtual lines: what you asked, the tool
+  Claude is running, the latest words it says, and when it is asking you
+  something.
+- When Claude edits the file, show the edit as a unified diff **in the window you
+  are in**. Accept with `:w`, reject with a key, or open the float to answer
+  Claude's own prompt there ("yes / no, tell Claude what to do differently").
+- The exchange is part of the session: it appears in the float's transcript
+  exactly as if you had typed it there.
+
+## Non-goals
+
+- **Streaming the edit word by word in session mode.** Claude's Edit tool writes
+  a whole hunk at once, so session mode shows an edit when it is proposed.
+  Streaming comes with the headless mode instead (see "Headless mode").
+- **An input in the corner notification.** The corner stays exactly as it is.
+- **Starting Claude for you.** Inline mode needs a running session; with none, it
+  says so and points at `:ClaudeCode` (builder may revisit, see the end).
+- **Neovim 0.10.** This goes on `main` (0.11+). Backporting to
+  `support/nvim-0.10` is a separate decision after the release lands.
+
+## Anti-goals
+
+These would make it a failure even if it works:
+
+- **Touching what you typed into Claude yourself.** A half-written prompt in the
+  float is never cleared, merged into, or sent.
+- **A second Claude session in session mode**, or anything that writes to the session behind the
+  TUI's back. The only way in is the same terminal input you type into. (Headless mode is a separate process on purpose,
+  and only when you choose it.)
+- **The listener deciding things.** The hooks listener keeps answering every
+  event with an empty 200. Inline mode follows events; it never replies to a
+  permission request. Approval stays with claudecode.nvim's diff and Claude's
+  own prompt.
+- **The float jumping over your code.** An inline request must never bring the
+  big float back by itself; that would cover the code and the inline lines you
+  are reading. (The corner is fine, see step 8.)
+
+## Constraints
+
+- **Hooks are required.** Inline mode follows the turn through hook events
+  (`UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `MessageDisplay`, `Stop`,
+  `StopFailure`, `PermissionRequest`, `Elicitation`), which need Claude Code CLI
+  2.1.301+ and `hooks.enabled`. Without them, the inline key says why and does
+  nothing. Screen scraping is not an acceptable source for this.
+- **A claudecode.nvim that knows the unified layout.** `diff_opts.layout =
+  "unified"` was renamed from `"inline"` in 288c9bf and shipped in v0.4.0; its
+  diff lifecycle events (`ClaudeCodeDiffOpened/Closed`) came with 2390c6e
+  (#297), also in v0.4.0. The tested pin (af04fbf, v0.3.0+142) has both, so the
+  gate is a **capability check, not a version check** (my call): does
+  claudecode.nvim accept `layout = "unified"`, and does a unified diff fire the
+  lifecycle events. Without them (the plugin's floor is v0.2.0), inline edits
+  use whatever layout claudecode.nvim is configured with, in a new tab, as diffs
+  open today.
+- **claudecode.nvim's unified diff is its own buffer**, read-only, with removed
+  and added lines interleaved. It is not drawn inside your file's buffer.
+  claudecode.nvim opens it in a new tab (floating-claude sets
+  `open_in_new_tab = true`) or a vsplit, and closes that window when the diff
+  is accepted or rejected.
+- **claudecode.nvim rejects a diff whose proposed buffer is hidden**
+  (`_register_reject_when_hidden`), so the diff buffer must stay on screen until
+  it is resolved.
+- `diff_opts.layout` is claudecode.nvim's global setting, read when each diff
+  opens. Inline mode needs it to be `"unified"` only for diffs that come from an
+  inline request.
+
+## Approaches considered
+
+**How the prompt reaches Claude.**
+
+- *A separate headless process per request* (float-claude.nvim,
+  claude-inline.nvim). It allows token streaming, but it is not the session.
+  Rejected: being in the session is the point.
+- *Claude Code's editor connection (MCP).* claudecode.nvim can push context to
+  Claude (at-mentions, the selection), but Claude Code accepts no prompts that
+  way. Not possible.
+- **Typing into the session's terminal (chosen).** floating-claude owns the
+  Claude job (`state.jobid`), so it can paste the prompt with `chansend` and
+  press Enter, exactly as you would.
+
+**What happens when the terminal input is not clean** (Heber picked A as the
+default, with C configurable):
+
+- **A. Wait for a clean prompt (default).** While Claude is mid-turn, the
+  request waits and sends when the turn ends. If Claude's input box holds a
+  draft, or Claude is asking you something, it does not send and offers to open
+  the float. Your text is never touched, and every reply belongs to one request.
+- B. Clear the input and send. Rejected: it deletes your draft.
+- **C. Send anyway (option).** Claude Code queues it. Simplest, but Claude Code
+  can fold a queued message into the running turn, so inline mode cannot always
+  tell which reply is its own. When it cannot, it says so in the inline lines and
+  shows what it hears.
+
+**What the exchange looks like** (Heber picked virtual lines):
+
+- A popup at the selection with the conversation above an input (the
+  float-claude.nvim look). Roomy, but it covers the code and reads as a chat
+  window.
+- **Virtual lines in the buffer (chosen).** A one-line input under the code,
+  growing as you type; once sent, it closes and the exchange appears as dim
+  virtual lines under the code, a few lines at most. The full reply is always in
+  the float.
+- Virtual lines plus an input that stays open. Faster for back-and-forth, but
+  there is always another window to dismiss. A possible option later.
+
+**Where the edit appears** (Heber picked c, with a as the fallback):
+
+- a. In a new tab, as diffs open today. Works now; you leave your code.
+- b. In a split beside your code. Half the screen.
+- **c. In your window (chosen).** The unified diff buffer replaces your file in
+  the window you are in, with the cursor on the first change. Your file comes
+  back when the diff resolves. Needs a spike to confirm claudecode.nvim can be
+  given back the window cleanly (see the build order). If it cannot, the default
+  becomes a.
+
+## The design
+
+### Flow
+
+```
+ 12 │ local function fetch(url)           select 12-14, <leader>ai
+ 13 │   return http.get(url)
+ 14 │ end
+    ╭───────────────────────────────╮     input under line 14, grows as you
+    │ add a retry with backoff_     │     type; <CR> sends, <S-CR>/<C-j>
+    ╰───────────────────────────────╯     newline, <Esc> (normal mode) cancels
+
+ 12 │ local function fetch(url)           sent: the input closes, the exchange
+ 13 │   return http.get(url)              shows as virtual lines under line 14
+ 14 │ end
+    ┊ ▸ add a retry with backoff
+    ┊ ● Reading lua/net.lua
+    ┊ Claude: I'll wrap http.get in a loop with…
+
+ ── window now shows claudecode's unified diff, cursor on the change ──
+ 12 │ local function fetch(url)
+ 13 │ - return http.get(url)              :w accepts, the reject key denies,
+ 13 │ + for attempt = 1, 4 do             <CR> on the inline lines opens the
+    ┊ Claude: wants to edit lua/net.lua   float on Claude's prompt
+```
+
+1. **Trigger.** `keymaps.inline` (default `<leader>ai`, normal and visual).
+   Visual mode uses the selected lines; normal mode uses the cursor line.
+   `<leader>ai` is free among floating-claude's own and claudecode.nvim's README
+   keys. float-claude.nvim uses the same default; Heber's call is that nobody
+   is expected to run both (their features overlap), so nothing handles the
+   clash: whoever installs both remaps one of them.
+2. **Input.** A borderless or lightly bordered one-line float anchored under the
+   last line of the range, as wide as the window's text area, growing with
+   wrapped or multi-line text up to `inline.max_input_height`. `<CR>` sends,
+   `<S-CR>` and `<C-j>` add a newline, `<Esc>` then `q` or `<Esc>` in normal mode
+   cancels. An empty input sends nothing.
+3. **Prompt.** What gets typed into the session names the range plus the
+   instruction. claudecode.nvim does not type mentions (it sends a structured
+   `at_mentioned` over its socket), so whether Claude Code honours a *typed*
+   `@lua/net.lua#L12-14` is unverified; spike 2 checks it. If it does, that is
+   the form; if not, the range goes in plain words (`In lua/net.lua, lines
+   12-14: add a retry with backoff`), which needs no parsing at all (my call).
+   Paths are relative to Claude's cwd. Before
+   sending, a modified buffer is written (`:update`), since Claude reads and
+   edits the file on disk; if it cannot be written, the request stops and says
+   why.
+4. **Sending** follows `inline.when_busy`:
+   - `"wait"` (default, approach A): send only when the session is idle (hook
+     phase), Claude is not asking anything, and the input box is empty (read
+     with the parser's input-box boundary). If Claude is mid-turn, the inline
+     lines show "waiting for Claude to finish" and the request sends on `Stop`.
+     If there is a draft or a request open, the inline lines say so and `<CR>`
+     on them opens the float; the request is dropped rather than retried.
+   - `"send"` (approach C): send at once and let Claude Code queue it.
+   The text goes in as one bracketed paste (`ESC[200~ … ESC[201~`) followed by
+   `\r`, so multi-line instructions arrive as one prompt.
+5. **Owning the turn.** The request is "ours" once a `UserPromptSubmit` arrives
+   whose prompt contains the instruction as sent (normalised for whitespace).
+   Matching on the instruction, not the whole prompt, keeps it working if
+   Claude Code expands a mention or shows a long paste as a placeholder; spike 2
+   confirms what the hook carries. From there until the turn ends, the turn's
+   events feed the inline lines.
+
+   **The turn ends** on `Stop` or `StopFailure`, or on an interrupt (`Esc` in
+   the float). No hook reports an interrupt, so inline mode reuses the session's
+   existing screen safety net (`hooks/session.lua`), which already settles an
+   interrupted turn (my call). An interrupt releases the request: the inline
+   lines say "interrupted", a waiting request is dropped, and the next inline
+   request can go. The layout swap is restored when the turn ends **and** no
+   inline diff is still open, whichever comes last.
+6. **Inline lines.** Virtual lines (an extmark with `virt_lines`) under the last
+   line of the range, so they follow the code as lines move. At most
+   `inline.lines` (default 3) lines: your instruction, then the latest of the
+   current tool, Claude's words (the tail of `MessageDisplay`, then `Stop`'s
+   message), and a request line when Claude asks something ("Claude is asking
+   you something — <CR> to open"). The text comes from the same reducer and
+   text helpers the corner uses, so wording and truncation match it. The lines
+   stay until you start another inline request in that buffer or clear them
+   (`:FloatingClaudeInline clear`); the builder may add a fade later.
+7. **The edit.** While an inline turn is ours, claudecode.nvim diffs open with
+   `diff_opts.layout = inline.diff_layout` (default `"unified"`, or `false` to
+   leave claudecode.nvim's own layout), set just for that turn and restored
+   after. With `inline.diff_in_window = true` (default, option c) the diff
+   buffer is shown in the window the request came from, cursor on the first
+   change, and the tab or split claudecode.nvim made is closed without hiding
+   the buffer. When the diff resolves (`User ClaudeCodeDiffClosed`), that window
+   gets your file back with the cursor where the change landed. With
+   `diff_in_window = false`, or when the spike shows c cannot work, the diff
+   opens as it does today (option a).
+   - Accept: `:w` in the diff (claudecode.nvim's own way) or its accept key.
+   - Reject: claudecode.nvim's deny (`:ClaudeCodeDiffDeny`, `<leader>ad` by
+     default).
+   - Talk: `<CR>` on the inline lines restores the float, focused on Claude's
+     prompt, where "no, and tell Claude what to do differently" lives.
+
+   While the diff holds your window, your file's buffer (and its extmark) is
+   not shown, so the inline lines are **also drawn in the diff buffer**, under
+   the first hunk, in inline mode's own namespace, with a buffer-local `<CR>`
+   for Talk (my call). Extmarks and a buffer-local map work on claudecode.nvim's
+   read-only buffer without modifying it; they go away with the buffer.
+8. **The rest of the plugin during an inline turn.** Heber is fine with the
+   corner during inline mode, so the corner behaves exactly as today: if it is
+   up it keeps showing activity, and `auto.show_hidden` brings a hidden Claude
+   back as the corner when Claude asks you something. That also covers asking
+   from one file and moving on to another: a permission or question waiting on
+   an inline turn shows up in the corner wherever you are, so a forgotten
+   request never stalls the session unseen. Two things do change for an inline
+   turn (my call, from the anti-goal): `auto.restore_on_input` never brings the
+   float back over your code, and the watcher does not minimize or restore
+   anything around an inline diff, since the float is not in its way.
+
+### One request at a time
+
+The session runs one turn at a time, so inline mode keeps one request in
+flight. Starting a new one while one is waiting or running says so and does
+nothing. Asking again about the same lines after a turn ends is just a new
+request in the same session, so Claude has the earlier exchange as context.
+
+### Configuration
+
+```lua
+inline = {
+  enabled = true,
+  when_busy = "wait",      -- "wait" (approach A) or "send" (approach C)
+  lines = 3,               -- virtual lines shown under the code, at most
+  max_input_height = 6,    -- rows the input grows to before scrolling
+  diff_layout = "unified", -- layout for an inline turn's diffs; false keeps yours
+  diff_in_window = true,   -- the diff in your window (c); false = a new tab (a)
+},
+keymaps = {
+  inline = "<leader>ai",   -- normal and visual; false to skip
+},
+```
+
+Plus a `:FloatingClaudeInline` command (`clear`, and the same thing the key
+does with a range).
+
+## Headless mode
+
+Heber wants a second way to run an inline request: a `claude -p` process of
+its own, the way float-claude.nvim works, instead of the floating-claude
+session. Same input under the code, same inline lines; what changes is where
+the request goes and how an edit lands. It needs neither the floating-claude
+session, nor hooks, nor claudecode.nvim.
+
+**Choosing it.** `inline.mode = "session"` (default) or `"headless"` sets what
+the key does. `:FloatingClaudeInline session` and `:FloatingClaudeInline
+headless` (with a range, or the cursor line) run one request the other way,
+whatever the default.
+
+**The process** (my calls, modelled on float-claude.nvim, MIT, read
+2026-11-24):
+
+- One `claude -p` per request, started with `--input-format stream-json
+  --output-format stream-json --verbose --include-partial-messages`, the prompt
+  written as one JSON line on stdin. Token deltas (`stream_event` /
+  `content_block_delta` / `text_delta`) drive the streaming; `result` ends it.
+- No tools and no MCP (`--tools ""`, `--strict-mcp-config`): it answers from
+  what it is sent and cannot touch files, so nothing it does needs approval.
+  What it is sent: the file name and filetype, the range, `context_lines`
+  (default 40) either side, and the diagnostics in the range.
+- A system prompt makes the reply's first word `EDIT` or `ANSWER`. `EDIT` is
+  followed by the replacement for the range; `ANSWER` by prose for the inline
+  lines (the full answer opens in a scratch float on `<CR>`). An untagged reply
+  is an answer.
+- One request at a time per buffer; `q`/cancel or `VimLeavePre` stops the
+  process (close stdin, then SIGTERM). No follow-up thread: each request starts
+  fresh, since continuity is what session mode is for.
+
+**How an edit lands** (Heber picked: both, configurable, review by default),
+`inline.headless.apply`:
+
+- `"review"` (default): nothing in the file changes while Claude writes. The
+  range's old lines are highlighted as removed (struck through, the
+  `ClaudeCodeInlineDiffDelete` look) and the new lines stream in below them as
+  virtual lines (`ClaudeCodeInlineDiffAdd` look). Accept writes them in as one
+  undo block; reject clears it. Accept/reject are buffer-local maps while a
+  review is pending, on the same keys as claudecode.nvim's accept/deny
+  (`<leader>aa` / `<leader>ad` by default), so both modes review alike.
+- `"stream"`: the new lines are written into the buffer as they arrive, one
+  undo block for the whole edit (`undojoin`), the buffer locked against your
+  typing in between; one `u` undoes it. If the buffer changes under it, the
+  edit stops and leaves what was written.
+
+```lua
+inline = {
+  mode = "session",        -- or "headless": what <leader>ai does
+  headless = {
+    cmd = { "claude" },
+    model = false,         -- false: the CLI's default
+    apply = "review",      -- or "stream"
+    context_lines = 40,
+  },
+},
+```
+
+## Build order
+
+1. **Spike, throwaway: the diff in your window.** With a real claudecode.nvim
+   at the tested pin (af04fbf), open a unified diff, move its buffer into the
+   origin window, close claudecode.nvim's tab, then accept with `:w` and,
+   separately, deny. Check that the buffer is never hidden in between (no
+   auto-reject), that claudecode.nvim's cleanup does not close the origin
+   window or the tab you are in, and that the file comes back. The result sets
+   the `diff_in_window` default.
+2. **Spike, throwaway: pasting into the TUI.** Paste a one-line and a
+   multi-line prompt into a live Claude with `chansend`, including with Claude
+   Code's vim editor mode (`/vim`) in normal mode. Confirm what
+   `UserPromptSubmit` carries for a long paste, and how the parser reads an
+   empty input box versus a draft.
+3. The feature, test-first in `tests/` with the existing plenary setup, plus a
+   compat spec against the real claudecode.nvim for the diff handoff.
+4. Headless mode: the process, the `EDIT`/`ANSWER` reply, `review` then
+   `stream`, and the `:FloatingClaudeInline session|headless` command.
+5. README section, CHANGELOG, `:checkhealth` lines (inline needs hooks, and
+   the unified diff needs a claudecode.nvim that passes the capability check), and a step in `:FloatingClaudeDemo`
+   if it fits the tour.
+
+## Left to the builder
+
+- Module layout (an `inline/` folder alongside `hooks/` is the natural home),
+  and how the inline module subscribes to session events (`state.subscribe` is
+  already the pattern).
+- How `diff_opts.layout` is swapped for one turn (claudecode.nvim's config
+  table, read at diff open).
+- Highlight groups for the input and the inline lines, linked to existing
+  groups by default.
+- Exact whitespace rules for matching the submitted prompt.
+- Whether a modified buffer is written silently or with a short message.
+- What the inline lines say when a turn ends with no words (e.g. only tools).
+
+## Open, for later
+
+- Starting Claude hidden when it is not running, and sending once it is ready.
+- An input that stays open for quick follow-ups (the hybrid look).
+- Backport to `support/nvim-0.10`.
