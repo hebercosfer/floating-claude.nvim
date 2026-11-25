@@ -17,8 +17,13 @@
 -- One request is in flight at a time, across both modes: `current`. It is taken
 -- when a request goes out or waits, and let go when it ends -- whichever way --
 -- or when its lines are cleared. The lines stay after it.
+--
+-- From the moment a request is sent until it ends, claudecode.nvim's diffs open
+-- the inline way, and the one for the request's file in the window it was asked
+-- from (diff.lua).
 
 local config = require("floating-claude.config")
+local diff = require("floating-claude.inline.diff")
 local input = require("floating-claude.inline.input")
 local lines = require("floating-claude.inline.lines")
 local parser = require("floating-claude.parser")
@@ -49,7 +54,10 @@ local EXITED = "Claude exited · start it with :ClaudeCode"
 ---@class floating_claude.InlineRun
 ---@field req floating_claude.InlineRequest
 ---@field buf integer
+---@field win integer the window it was asked from
 ---@field timer uv.uv_timer_t|nil
+---@field diff boolean whether its diffs are being looked after (diff.begin)
+---@field count integer|nil the buffer's line count when it last changed under the request
 
 ---@type floating_claude.InlineRun|nil
 local current = nil
@@ -69,6 +77,9 @@ local function draw(run, at)
     -- On every render: the <CR> exists only while it is passed.
     on_enter = open_claude,
   })
+  if run.diff then
+    diff.redraw()
+  end
 end
 
 -- Let go of the request: nothing follows it any more, and the float may come
@@ -88,6 +99,51 @@ local function finish(run)
   end
   session.on_record("inline", nil)
   session.set_inline(false)
+  if run.diff then
+    diff.finish()
+  end
+end
+
+-- A diff handed to the request's window has closed and the file is reloaded:
+-- the reload does not carry the lines' extmark along with the edit, so hang
+-- them again, as far down as the file grew (or up as it shrank), within the
+-- range.
+---@param run floating_claude.InlineRun
+local function diff_changed(run)
+  -- A later request in this buffer has the lines now.
+  if (current and current ~= run) or not vim.api.nvim_buf_is_valid(run.buf) then
+    return
+  end
+  local first, last = lines.range(run.buf)
+  if not first then
+    return
+  end
+  local count = vim.api.nvim_buf_line_count(run.buf)
+  local row = math.max(first, last + count - (run.count or count))
+  run.count = count
+  draw(run, { row = row, first_row = first })
+end
+
+-- The request's diffs, from the moment it goes out: claudecode.nvim's own
+-- options are swapped back when it ends (finish).
+---@param run floating_claude.InlineRun
+local function begin_diff(run)
+  if run.diff then
+    return
+  end
+  run.diff = true
+  run.count = vim.api.nvim_buf_line_count(run.buf)
+  diff.begin({
+    file = vim.api.nvim_buf_get_name(run.buf),
+    win = run.win,
+    buf = run.buf,
+    on_change = function()
+      diff_changed(run)
+    end,
+    items = function()
+      return request.items(run.req)
+    end,
+  })
 end
 
 -- Draw what changed, and let go of the request once it is over.
@@ -152,6 +208,9 @@ local function apply(run, what)
   if what == "send" then
     send.paste(state.jobid, req.prompt)
     req.phase, req.sent_at = "sent", record.now_ms()
+    -- At the send, not while the request waits: the turn ahead's diffs are
+    -- not this request's.
+    begin_diff(run)
   elseif what == "wait" then
     req.phase = "waiting"
   else
@@ -250,10 +309,11 @@ end
 
 -- Take the one place in flight.
 ---@param buf integer
+---@param win integer
 ---@param req floating_claude.InlineRequest
 ---@return floating_claude.InlineRun
-local function acquire(buf, req)
-  local run = { req = req, buf = buf }
+local function acquire(buf, win, req)
+  local run = { req = req, buf = buf, win = win, diff = false }
   current = run
   -- From here Claude works on the code in front of you, which the float would
   -- cover: it does not come back for this (attention.lua).
@@ -336,7 +396,7 @@ local function start_session(ctx, instruction)
     line2 = ctx.row + 1,
     instruction = instruction,
   })
-  local run = acquire(ctx.buf, req)
+  local run = acquire(ctx.buf, ctx.win, req)
   apply(run, verdict())
   settle(run, true, { row = ctx.row, first_row = ctx.first_row })
 end

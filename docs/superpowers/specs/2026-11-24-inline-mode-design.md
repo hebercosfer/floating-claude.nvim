@@ -228,10 +228,18 @@ default, with C configurable):
    after. With `inline.diff_in_window = true` (default, option c) the diff
    buffer is shown in the window the request came from, cursor on the first
    change, and the tab or split claudecode.nvim made is closed without hiding
-   the buffer. When the diff resolves (`User ClaudeCodeDiffClosed`), that window
-   gets your file back with the cursor where the change landed. With
-   `diff_in_window = false`, or when the spike shows c cannot work, the diff
-   opens as it does today (option a).
+   the buffer. When the diff is answered, that window gets your file back
+   (the order is in the spike results below: on `User ClaudeCodeDiffClosed`
+   it is too late, for claudecode.nvim's cleanup has closed the window by
+   then); once it closes, the file is reloaded with the cursor where the
+   change landed. With `diff_in_window = false`, or when the capability check
+   fails, the diff opens as it does today (option a).
+
+   The swap is global, and claudecode.nvim reads it as each diff opens, with
+   no hook before that: a diff Claude opens for **another file** during the
+   inline turn also takes the turn's layout (unified) and opens where
+   claudecode.nvim puts it then (a split in the current tab, with
+   `diff_in_window`), but it is never handed to your window.
    - Accept: `:w` in the diff (claudecode.nvim's own way) or its accept key.
    - Reject: claudecode.nvim's deny (`:ClaudeCodeDiffDeny`, `<leader>ad` by
      default).

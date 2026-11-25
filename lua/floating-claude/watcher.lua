@@ -11,6 +11,7 @@
 --     and idle, and checks for diffs on the same tick.
 
 local config = require("floating-claude.config")
+local inline_diff = require("floating-claude.inline.diff")
 local parser = require("floating-claude.parser")
 local state = require("floating-claude.state")
 
@@ -65,6 +66,13 @@ function M.diff_step(handlers, track)
   local opts = config.options.auto
   local has_diff = parser.diff_visible()
   local mode = state.mode()
+
+  -- An inline request's diff is in the window you asked from, where the float
+  -- never was in its way: nothing to minimize, and nothing to restore after.
+  -- It leaves before_diff and last_mode as they were.
+  if inline_diff.active() then
+    return has_diff, mode
+  end
 
   if has_diff and state.before_diff == nil then
     -- The first check to see this diff. What Claude was comes from before,

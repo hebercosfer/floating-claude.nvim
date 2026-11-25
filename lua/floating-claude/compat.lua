@@ -121,6 +121,35 @@ function M.claudecode()
   return report
 end
 
+--- Whether claudecode.nvim can open an inline request's diff unified and hand
+--- it to the window the request came from. A capability check, not a version
+--- check: claudecode.nvim is there, its config validator takes
+--- `layout = "unified"` (tried on a table of its own, never on the live
+--- config), its unified layout's module loads, and the active-diffs table the
+--- handoff reaches into is still exported. That last one is an internal (the
+--- handoff wraps a diff's `resolution_callback`, for claudecode.nvim has no
+--- event for an answered diff); inline/diff.lua also checks, when a diff opens,
+--- that the entry carries the callback. Without all of this, an inline edit's
+--- diff opens as any other does.
+---@return boolean
+function M.unified_diff()
+  if not pcall(require, "claudecode") then
+    return false
+  end
+  local ok_config, cc_config = pcall(require, "claudecode.config")
+  if not ok_config or type(cc_config) ~= "table" or type(cc_config.apply) ~= "function" then
+    return false
+  end
+  if not pcall(cc_config.apply, { diff_opts = { layout = "unified" } }) then
+    return false
+  end
+  if not pcall(require, "claudecode.diff_inline") then
+    return false
+  end
+  local ok_diff, cc_diff = pcall(require, "claudecode.diff")
+  return ok_diff and type(cc_diff) == "table" and type(cc_diff._get_active_diffs) == "function"
+end
+
 --- The command claudecode.nvim launches ("claude", "claude --resume", a path).
 ---@param cmd_string string|nil
 ---@return string|nil
