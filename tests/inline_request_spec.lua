@@ -847,6 +847,17 @@ describe("inline request", function()
       assert.is_true(request.ended(req))
     end)
 
+    it("has the words for a request dropped for a draft, or for a question", function()
+      assert.equals("Claude's prompt has a draft · <CR> to open Claude", request.DRAFT)
+      assert.equals("Claude is asking you something · <CR> to open Claude", request.ASKING)
+      for _, note in ipairs({ request.DRAFT, request.ASKING }) do
+        local req =
+          request.new({ file = "a.lua", line1 = 1, line2 = 1, instruction = "x", mention = "at" })
+        req.phase, req.note = "dropped", note
+        assert.same({ "▸ x", note }, request.items(req))
+      end
+    end)
+
     it("keeps what the plugin says apart from what Claude said", function()
       local req = running()
       request.on_record(req, { event = "MessageDisplay", at = 1200, delta = "Trying." })

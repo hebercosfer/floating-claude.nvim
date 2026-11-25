@@ -64,4 +64,48 @@ describe("attention", function()
   it("has nothing to do without an effect", function()
     assert.is_nil(attention.decide("corner", nil, opts("corner", "idle"), false))
   end)
+
+  -- An inline request is Claude working on the code in front of you: the float
+  -- coming back over it is what inline mode is there to avoid.
+  describe("for an inline request", function()
+    it("never brings the float back from the corner", function()
+      for _, setting in ipairs({ "idle", "request" }) do
+        assert.is_nil(attention.decide("corner", "request", opts("corner", setting), false, true))
+        assert.is_nil(attention.decide("corner", "finished", opts("corner", setting), false, true))
+      end
+    end)
+
+    it("is no different from any other request when it is not one", function()
+      assert.equals(
+        "restore_now",
+        attention.decide("corner", "request", opts("corner", "idle"), false, false)
+      )
+      assert.equals(
+        "restore_later",
+        attention.decide("corner", "finished", opts("corner", "idle"), false, nil)
+      )
+    end)
+
+    it("still cancels a pending restore on new work", function()
+      assert.equals(
+        "cancel",
+        attention.decide("corner", "activity", opts("corner", "idle"), false, true)
+      )
+    end)
+
+    it("still brings a hidden Claude back as the corner", function()
+      assert.equals(
+        "show_now",
+        attention.decide("hidden", "request", { show_hidden = "request" }, false, true)
+      )
+      assert.equals(
+        "show_later",
+        attention.decide("hidden", "finished", { show_hidden = "idle" }, false, true)
+      )
+    end)
+
+    it("leaves the float alone, as ever", function()
+      assert.is_nil(attention.decide("float", "request", opts("float", "idle"), false, true))
+    end)
+  end)
 end)

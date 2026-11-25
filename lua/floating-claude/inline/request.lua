@@ -35,7 +35,11 @@ local SAFETY_MS = 1000
 -- as well -- so the whole of a long instruction would never be found in it.
 local MATCH_BYTES = 1500
 
-local ASKING = "Claude is asking you something · <CR> to open Claude"
+-- What the caller puts in `note` when it drops a request instead of sending it.
+M.DRAFT = "Claude's prompt has a draft · <CR> to open Claude"
+M.ASKING = "Claude is asking you something · <CR> to open Claude"
+
+local ASKING = M.ASKING
 local DIDNT_TAKE = "Claude didn't take the prompt · <CR> to open Claude"
 local COULDNT_TELL = "couldn't tell which reply is this one · <CR> to open Claude"
 

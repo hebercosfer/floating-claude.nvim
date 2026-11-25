@@ -14,6 +14,11 @@
 -- screen (you are reviewing it, and it is its own notification), and the
 -- float is never interrupted at all.
 --
+-- An inline request is the one exception to bringing the float back: it is
+-- Claude working on the code in front of you, which the float would cover.
+-- A corner stays a corner then (its own activity still cancels a pending
+-- restore), and a hidden Claude still comes back as the corner.
+--
 -- Pure: the session calls it and does the moving.
 
 local M = {}
@@ -28,12 +33,18 @@ local NOW, LATER =
 ---@param effect "activity"|"request"|"finished"|nil
 ---@param opts { restore_on_input: "idle"|"request"|false, show_hidden: "request"|"idle"|false }
 ---@param diff_visible boolean
+---@param inline boolean|nil an inline request is in flight
 ---@return "restore_now"|"restore_later"|"show_now"|"show_later"|"cancel"|nil
-function M.decide(where, effect, opts, diff_visible)
+function M.decide(where, effect, opts, diff_visible, inline)
   if effect == "activity" then
     return "cancel"
   end
-  if where == "float" or diff_visible or (effect ~= "request" and effect ~= "finished") then
+  if
+    where == "float"
+    or diff_visible
+    or (inline and where == "corner")
+    or (effect ~= "request" and effect ~= "finished")
+  then
     return nil
   end
   -- Not `where == "corner" and ... or ...`: a corner set to false would fall

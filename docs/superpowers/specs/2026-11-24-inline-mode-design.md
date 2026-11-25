@@ -193,7 +193,10 @@ default, with C configurable):
      lines show "waiting for Claude to finish" and the request sends on `Stop`.
      If there is a draft or a request open, the inline lines say so and `<CR>`
      on them opens the float; the request is dropped rather than retried.
-   - `"send"` (approach C): send at once and let Claude Code queue it.
+   - `"send"` (approach C): send at once and let Claude Code queue it. It skips
+     only the wait: a draft in the input box or a request open still drops the
+     request, as in `"wait"`, since the anti-goal (a half-written prompt is
+     never cleared, merged into or sent) binds both.
    The text goes in as one bracketed paste (`ESC[200~ … ESC[201~`) followed by
    `\r`, so multi-line instructions arrive as one prompt.
 5. **Owning the turn.** The request is "ours" once a `UserPromptSubmit` arrives

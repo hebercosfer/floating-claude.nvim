@@ -223,6 +223,37 @@ end
 
 --- Job ------------------------------------------------------------------------
 
+-- Inline mode must not paste over a draft of yours, and the screen cannot tell
+-- one from the prompt Claude Code suggests: so what is typed into Claude's
+-- terminal is watched while it runs (inline/send.lua), and forgotten when
+-- Claude takes a prompt. A prompt Claude Code submitted itself is not one you
+-- typed, and leaves a draft where it is: a deviation from "every prompt", for
+-- a draft read as Claude's suggestion is the one thing a paste cannot undo.
+local function watch_typing()
+  if not config.options.inline.enabled then
+    return
+  end
+  local send = require("floating-claude.inline.send")
+  send.watch_typing(state.buf)
+  session.on_record("typing", function(rec)
+    if rec.event == "UserPromptSubmit" and not rec.synthetic then
+      send.reset_typed()
+    end
+  end)
+end
+
+-- Claude's job is gone: stop watching what is typed into it, and end an inline
+-- request that was waiting on it (the module is loaded only if one could have
+-- been made).
+local function unwatch_typing()
+  session.on_record("typing", nil)
+  require("floating-claude.inline.send").unwatch_typing()
+  local inline = package.loaded["floating-claude.inline"]
+  if inline then
+    inline.claude_exited()
+  end
+end
+
 function M.spawn(cmd_string, env_table, effective_config, focus)
   -- First spawn is the first moment we know which CLI binary claudecode.nvim
   -- launches, and the last moment before the scraping starts mattering.
@@ -254,6 +285,7 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
           return
         end
         watcher.stop()
+        unwatch_typing()
         -- Only now: Claude acts on what its hooks reply, so the port stays
         -- ours for as long as Claude runs.
         session.stop()
@@ -282,6 +314,7 @@ function M.spawn(cmd_string, env_table, effective_config, focus)
   end
 
   vim.bo[state.buf].bufhidden = "hide"
+  watch_typing()
 
   -- Minimize straight from the terminal without leaving insert mode.
   local minimize_key = config.options.keymaps.minimize
@@ -327,6 +360,7 @@ end
 
 function M.close()
   watcher.stop()
+  unwatch_typing()
   -- Our own move: unguarded, the float's WinLeave would schedule a minimize
   -- that lands on whatever float is up by then -- the next Claude's.
   quietly(function()

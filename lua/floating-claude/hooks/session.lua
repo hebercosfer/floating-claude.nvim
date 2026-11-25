@@ -47,6 +47,7 @@ local SAFETY_MS = 1000
 ---@field live_at integer|nil
 ---@field mode "float"|"corner"|"hidden"|nil
 ---@field prev_mode "float"|"corner"|"hidden"|nil
+---@field inline boolean An inline request is in flight, so the float stays away (attention.lua).
 
 ---@return floating_claude.Session
 local function fresh()
@@ -64,12 +65,17 @@ local function fresh()
     live_at = nil,
     mode = nil,
     prev_mode = nil,
+    inline = false,
   }
 end
 
 local S = fresh()
 -- Outlive any one session: the notification registers once, at load.
 local change_fns = {}
+-- Who wants to hear each live record, by name. They outlive a session too: what
+-- listens for typing is set up when Claude starts, and an inline request has
+-- its own say about a Claude that exits.
+local record_fns = {}
 
 local function changed()
   for fn in pairs(change_fns) do
@@ -119,7 +125,7 @@ end
 
 local function act(effect)
   local decision =
-    attention.decide(state.mode(), effect, config.options.auto, parser.diff_visible())
+    attention.decide(state.mode(), effect, config.options.auto, parser.diff_visible(), S.inline)
   if decision == "cancel" then
     stop_timer()
   elseif decision == "restore_now" then
@@ -263,6 +269,28 @@ function M.on_change(fn)
   change_fns[fn] = true
 end
 
+--- Hear every live record, after the state has taken it in and the attention
+--- rules have acted on it, under `name`: one listener to a name. A replay (see
+--- receive_ring) is not heard -- it is the past, and nothing acts on it.
+---@param name string
+---@param fn fun(rec: floating_claude.Record)|nil nil stops listening
+function M.on_record(name, fn)
+  record_fns[name] = fn
+end
+
+--- Whether an inline request is in flight: Claude is working on the code in
+--- front of you, so the float is not brought back over it. Ends with the
+--- session.
+---@param active boolean
+function M.set_inline(active)
+  S.inline = active
+end
+
+---@return boolean
+function M.inline_active()
+  return S.inline
+end
+
 --- A live record: from the listener, or from the tour.
 ---@param rec floating_claude.Record
 function M.inject(rec)
@@ -272,6 +300,12 @@ function M.inject(rec)
   local _, effect = reducer.apply(S.state, rec)
   changed()
   act(effect)
+  -- After act(): a record that ends an inline request must still be acted on
+  -- as one of its turn. A copy, since a listener may stop listening, or a
+  -- session start, as it hears.
+  for _, fn in ipairs(vim.tbl_values(record_fns)) do
+    fn(rec)
+  end
 end
 
 -- The screen's word on the state when the corner opens. A live status line

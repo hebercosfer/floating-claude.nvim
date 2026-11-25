@@ -3,18 +3,30 @@
 -- Claude's terminal since its last prompt, which is what tells a draft from the
 -- prompt Claude Code suggests.
 
+local record = require("floating-claude.hooks.record")
 local send = require("floating-claude.inline.send")
 
 describe("inline send", function()
   describe("gate", function()
     -- when_busy, session phase, draft, typed -> what to do.
     local rows = {
-      -- "send" never waits, asks or looks at the box.
+      -- "send" skips only the wait for Claude's turn: busy or not, it goes at
+      -- once, and Claude Code queues it...
       { "send", "idle", "", false, "send" },
       { "send", "working", "", false, "send" },
-      { "send", "request", "", false, "send" },
-      { "send", "idle", "half a thought", true, "send" },
-      { "send", "working", nil, true, "send" },
+      { "send", "working", "", true, "send" },
+      -- ...but not over a question Claude is asking...
+      { "send", "request", "", false, "asking" },
+      { "send", "request", "half a thought", true, "asking" },
+      { "send", "request", nil, false, "asking" },
+      -- ...nor over a draft you typed, busy or not (nil: it could not be read)...
+      { "send", "idle", "half a thought", true, "draft" },
+      { "send", "working", "half a thought", true, "draft" },
+      { "send", "idle", nil, false, "draft" },
+      { "send", "working", nil, true, "draft" },
+      -- ...but text nobody typed is Claude's suggestion, and as good as empty.
+      { "send", "idle", "In three words, what is Neovim?", false, "send" },
+      { "send", "working", "In three words, what is Neovim?", false, "send" },
       -- "wait": a request open is asking, before anything else.
       { "wait", "request", "", false, "asking" },
       { "wait", "request", "half a thought", true, "asking" },
@@ -56,6 +68,18 @@ describe("inline send", function()
 
     it("does not paste over text when it cannot tell whether it was typed", function()
       assert.equals("draft", send.gate("wait", "idle", "some text"))
+      assert.equals("draft", send.gate("send", "idle", "some text"))
+    end)
+
+    it("never makes `send` wait, whatever Claude and the box are doing", function()
+      for _, phase in ipairs({ "idle", "working", "request" }) do
+        for _, draft in ipairs({ "", "text" }) do
+          for _, typed in ipairs({ true, false }) do
+            assert.is_not.equals("wait", send.gate("send", phase, draft, typed))
+          end
+        end
+        assert.is_not.equals("wait", send.gate("send", phase, nil, false))
+      end
     end)
   end)
 
@@ -101,14 +125,20 @@ describe("inline send", function()
   end)
 
   describe("typing", function()
-    local buf, other
+    local buf, other, box_readable
 
     before_each(function()
       buf = vim.api.nvim_create_buf(false, true)
       other = vim.api.nvim_create_buf(false, true)
+      -- Claude's box is on the screen unless a spec says it is not.
+      box_readable = send.box_readable
+      send.box_readable = function()
+        return true
+      end
     end)
 
     after_each(function()
+      send.box_readable = box_readable
       send.unwatch_typing()
       vim.api.nvim_buf_delete(buf, { force = true })
       vim.api.nvim_buf_delete(other, { force = true })
@@ -168,6 +198,18 @@ describe("inline send", function()
         assert.is_true(vim.paste({ "elsewhere" }, -1))
         assert.equals(1, #calls)
         assert.is_false(send.typed())
+      end)
+
+      it("while no input box is on the screen does not count, though it goes through", function()
+        send.box_readable = function()
+          return false
+        end
+        vim.api.nvim_set_current_buf(buf)
+        send.watch_typing(buf)
+        assert.is_true(vim.paste({ "answering a dialog" }, -1))
+        assert.equals(1, #calls)
+        assert.is_false(send.typed())
+        assert.is_nil(send.typed_at())
       end)
 
       it("of nothing does not count", function()
@@ -230,6 +272,75 @@ describe("inline send", function()
       end)
     end)
 
+    describe("typed_at", function()
+      local original, now_ms, clock
+
+      before_each(function()
+        original, now_ms, clock = vim.paste, record.now_ms, 1000
+        record.now_ms = function()
+          return clock
+        end
+        vim.paste = function()
+          return true
+        end
+        vim.api.nvim_set_current_buf(buf)
+      end)
+
+      after_each(function()
+        send.unwatch_typing()
+        vim.paste = original
+        record.now_ms = now_ms
+      end)
+
+      it("is nil while nothing has been typed", function()
+        send.watch_typing(buf)
+        assert.is_nil(send.typed_at())
+      end)
+
+      it("is when something was last put into the terminal, in record.now_ms's time", function()
+        send.watch_typing(buf)
+        vim.paste({ "a draft" }, -1)
+        assert.equals(1000, send.typed_at())
+        clock = 1300
+        vim.paste({ "more" }, -1)
+        assert.equals(1300, send.typed_at())
+      end)
+
+      it("is not moved by a paste that does not count", function()
+        send.watch_typing(buf)
+        vim.paste({ "a draft" }, -1)
+        clock = 1300
+        vim.paste({ "" }, -1)
+        assert.equals(1000, send.typed_at())
+      end)
+
+      it("goes with what was typed: on reset_typed, and on a watch that begins afresh", function()
+        send.watch_typing(buf)
+        vim.paste({ "a draft" }, -1)
+        send.reset_typed()
+        assert.is_nil(send.typed_at())
+        vim.paste({ "a draft" }, -1)
+        send.watch_typing(buf)
+        assert.is_nil(send.typed_at())
+      end)
+
+      it("goes when the box reads empty, as the typing does", function()
+        send.watch_typing(buf)
+        vim.paste({ "a draft" }, -1)
+        send.clear_typed_if_empty("a draft")
+        assert.equals(1000, send.typed_at())
+        send.clear_typed_if_empty("")
+        assert.is_nil(send.typed_at())
+      end)
+
+      it("is nil once the watch is taken down", function()
+        send.watch_typing(buf)
+        vim.paste({ "a draft" }, -1)
+        send.unwatch_typing()
+        assert.is_nil(send.typed_at())
+      end)
+    end)
+
     describe("clear_typed_if_empty", function()
       local original
 
@@ -272,15 +383,70 @@ describe("inline send", function()
       end)
     end)
 
+    describe("is_text_key", function()
+      it("is a character you could put in a prompt", function()
+        for _, key in ipairs({ "a", "Z", "1", " ", "<", "|", "\\", "é", "日", "?" }) do
+          assert.is_true(send.is_text_key(key), key)
+        end
+      end)
+
+      it(
+        "is not Esc, Tab, Enter, Backspace, an arrow, a function key, or a control or meta chord",
+        function()
+          local keys = {
+            "\27",
+            "\t",
+            "\r",
+            "\n",
+            "\3",
+            "\127",
+            "\0",
+            "",
+            vim.keycode("<S-Tab>"),
+            vim.keycode("<Up>"),
+            vim.keycode("<Down>"),
+            vim.keycode("<BS>"),
+            vim.keycode("<F5>"),
+            vim.keycode("<M-a>"),
+            vim.keycode("<C-j>"),
+            vim.keycode("<C-c>"),
+          }
+          for _, key in ipairs(keys) do
+            assert.is_false(send.is_text_key(key), vim.inspect(key))
+          end
+        end
+      )
+    end)
+
     describe("is_typing", function()
       local function typing(key, typed, mode, current)
         return send.is_typing(buf, key, typed, mode, current or buf)
       end
 
-      it("is a key that reaches the terminal, in terminal mode, in the watched buffer", function()
-        assert.is_true(typing("a", "a", "t"))
-        assert.is_true(typing("\r", "\r", "t"))
-        assert.is_true(typing("\27", "\27", "t"))
+      it(
+        "is a text key that reaches the terminal, in terminal mode, in the watched buffer",
+        function()
+          assert.is_true(typing("a", "a", "t"))
+          assert.is_true(typing(" ", " ", "t"))
+          assert.is_true(typing("É", "É", "t"))
+        end
+      )
+
+      it("is not a key that leaves no draft behind: Esc, Tab, Enter, a chord, an arrow", function()
+        for _, key in ipairs({
+          "\27",
+          "\t",
+          "\r",
+          "\3",
+          vim.keycode("<S-Tab>"),
+          vim.keycode("<Up>"),
+          vim.keycode("<M-a>"),
+          vim.keycode("<BS>"),
+          vim.keycode("<F5>"),
+          "",
+        }) do
+          assert.is_false(typing(key, key, "t"), vim.fn.keytrans(key))
+        end
       end)
 
       it("is not a key typed in another buffer", function()
@@ -347,6 +513,9 @@ describe("inline send", function()
       it("sees what is typed into Claude's terminal, and nothing else", function()
         local seen = run([[
           local send = require("floating-claude.inline.send")
+          -- Claude's box is on the screen unless a step says it is not.
+          local readable = true
+          send.box_readable = function() return readable end
           vim.keymap.set("t", "<C-q>", "x")
           vim.keymap.set("t", "<F5>", function() end)
 
@@ -360,7 +529,13 @@ describe("inline send", function()
 
           local seen = {}
           local function note(label)
-            table.insert(seen, { label, send.typed() })
+            -- typed_at() is set exactly when something was typed.
+            local typed, at = send.typed(), send.typed_at()
+            local seen_typed = typed
+            if typed ~= (at ~= nil) then
+              seen_typed = "typed_at disagrees"
+            end
+            table.insert(seen, { label, seen_typed })
             send.reset_typed()
           end
           local function feed(keys, mode)
@@ -388,7 +563,12 @@ describe("inline send", function()
             function() send.reset_typed(); vim.fn.setreg('"', "put"); feed("j") end,
             function() note("a motion in terminal-normal mode"); feed("p") end,
             function() note("p in terminal-normal mode"); feed("P") end,
-            function() note("P in terminal-normal mode") end,
+            function() note("P in terminal-normal mode"); feed("i") end,
+            function() feed("<Esc>") end,
+            function() note("Esc"); feed("<Tab>") end,
+            function() note("Tab"); readable = false; feed("a") end,
+            function() note("a text key with no box on the screen"); readable = true; feed("a") end,
+            function() note("a text key with the box on the screen") end,
           }
           local at = 0
           local function step()
@@ -418,6 +598,10 @@ describe("inline send", function()
           { "a motion in terminal-normal mode", false },
           { "p in terminal-normal mode", true },
           { "P in terminal-normal mode", true },
+          { "Esc", false },
+          { "Tab", false },
+          { "a text key with no box on the screen", false },
+          { "a text key with the box on the screen", true },
         }, seen)
       end)
     end)

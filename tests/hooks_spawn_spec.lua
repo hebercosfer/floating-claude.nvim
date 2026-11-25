@@ -104,6 +104,162 @@ describe("spawning Claude", function()
     assert.is_false(inserted, "an automatic restore entered insert mode")
   end)
 
+  -- Inline mode must not paste over a draft of yours, and the screen cannot
+  -- tell one from the prompt Claude Code suggests: what you typed can.
+  describe("watching what is typed into Claude", function()
+    local send = require("floating-claude.inline.send")
+    local record = require("floating-claude.hooks.record")
+    local paste, box_readable
+
+    before_each(function()
+      paste = vim.paste
+      -- The script that stands in for Claude draws no input box.
+      box_readable = send.box_readable
+      send.box_readable = function()
+        return true
+      end
+    end)
+
+    after_each(function()
+      send.box_readable = box_readable
+      send.unwatch_typing()
+      vim.paste = paste
+    end)
+
+    local function type_into_claude()
+      vim.api.nvim_set_current_win(state.win)
+      vim.paste({ "a draft" }, -1)
+    end
+
+    local function submit(extra)
+      session.inject(vim.tbl_extend("force", {
+        event = "UserPromptSubmit",
+        at = record.now_ms(),
+        prompt = "go",
+        synthetic = false,
+      }, extra or {}))
+    end
+
+    it("starts when Claude does, and forgets the draft once Claude takes a prompt", function()
+      spawn()
+      assert.is_false(send.typed())
+      type_into_claude()
+      assert.is_true(send.typed())
+      submit()
+      assert.is_false(send.typed())
+      assert.is_nil(send.typed_at())
+    end)
+
+    it("does not take a prompt Claude Code submitted itself for the draft's", function()
+      spawn()
+      type_into_claude()
+      submit({ synthetic = true })
+      assert.is_true(send.typed())
+    end)
+
+    it("stops when Claude does", function()
+      spawn()
+      vim.fn.jobstop(state.jobid)
+      assert.is_true(vim.wait(3000, function()
+        return not state.buf_valid()
+      end))
+      assert.equals(paste, vim.paste)
+    end)
+
+    it("stops when Claude is closed", function()
+      spawn()
+      assert.is_not.equals(paste, vim.paste)
+      terminal.close()
+      assert.equals(paste, vim.paste)
+    end)
+
+    it("is not started with inline mode turned off", function()
+      config.setup({ version_check = false, inline = { enabled = false } })
+      spawn()
+      assert.equals(paste, vim.paste)
+      type_into_claude()
+      assert.is_false(send.typed())
+    end)
+  end)
+
+  -- Nothing is left to say how an inline request ends once the Claude it went to
+  -- has gone, and it would hold the one place for good.
+  describe("an inline request in flight", function()
+    local inline = require("floating-claude.inline")
+    local input = require("floating-claude.inline.input")
+    local lines = require("floating-claude.inline.lines")
+    local send = require("floating-claude.inline.send")
+    local parser = require("floating-claude.parser")
+    local file, buf, open, paste, notify, notes, parser_draft
+
+    local function shown()
+      local found = vim.api.nvim_buf_get_extmarks(buf, lines.ns, 0, -1, { details = true })
+      return found[1]
+          and vim.tbl_map(function(chunks)
+            return chunks[1][1]
+          end, found[1][4].virt_lines)
+        or nil
+    end
+
+    local function ask()
+      inline.ask({ line1 = 1, line2 = 2, mode = "session" })
+    end
+
+    before_each(function()
+      file = vim.fn.tempname() .. ".lua"
+      vim.fn.writefile({ "one", "two" }, file)
+      vim.cmd("edit " .. vim.fn.fnameescape(file))
+      buf = vim.api.nvim_get_current_buf()
+      open, paste, notify, notes = input.open, send.paste, vim.notify, {}
+      input.open = function(opts)
+        opts.on_submit("add a retry")
+      end
+      send.paste = function() end
+      vim.notify = function(msg)
+        -- Not the editor's own chatter (an LSP client attaching to the temp file).
+        if not msg:find("^Attached to LSP") then
+          table.insert(notes, msg)
+        end
+      end
+      -- The script that stands in for Claude draws no input box, which the gate
+      -- reads as a draft: give it an empty one.
+      parser_draft = parser.input_draft
+      parser.input_draft = function()
+        return ""
+      end
+    end)
+
+    after_each(function()
+      inline.clear(buf)
+      parser.input_draft = parser_draft
+      input.open, send.paste, vim.notify = open, paste, notify
+      vim.cmd("enew")
+      vim.api.nvim_buf_delete(buf, { force = true })
+      vim.fn.delete(file)
+    end)
+
+    it("ends as failed when Claude exits, and lets the next one go", function()
+      spawn()
+      ask()
+      assert.is_true(session.inline_active())
+      vim.fn.jobstop(state.jobid)
+      assert.is_true(vim.wait(3000, function()
+        return not state.buf_valid()
+      end))
+      assert.same({ "▸ add a retry", "Claude exited · start it with :ClaudeCode" }, shown())
+      assert.is_false(session.inline_active())
+      assert.same({}, notes)
+    end)
+
+    it("ends as failed when Claude is closed", function()
+      spawn()
+      ask()
+      terminal.close()
+      assert.same({ "▸ add a retry", "Claude exited · start it with :ClaudeCode" }, shown())
+      assert.is_false(session.inline_active())
+    end)
+  end)
+
   it("tells the listener when Claude is minimized", function()
     spawn()
     local seen = {}

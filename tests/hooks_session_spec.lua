@@ -303,6 +303,134 @@ describe("the hooks session", function()
     assert.is_nil(vim.uv.fs_stat(args[3]))
   end)
 
+  describe("listening to records", function()
+    local heard
+
+    before_each(function()
+      session.start_scripted()
+      handlers()
+      heard = {}
+      session.on_record("spec", function(rec)
+        table.insert(heard, { rec.event, session.state().phase })
+      end)
+    end)
+
+    after_each(function()
+      session.on_record("spec", nil)
+    end)
+
+    it("hears a live record, after the reducer has taken it in", function()
+      session.inject({ event = "UserPromptSubmit", at = 1, prompt = "go", synthetic = false })
+      session.inject({ event = "Stop", at = 2, message = "Done." })
+      assert.same({ { "UserPromptSubmit", "working" }, { "Stop", "idle" } }, heard)
+    end)
+
+    it("does not hear a replay", function()
+      terminal(IDLE)
+      session.receive_ring({ { event = "Stop", at = 1, message = "Done." } }, 1)
+      assert.same({}, heard)
+    end)
+
+    it("keeps one listener to a name, and stops on nil", function()
+      local other = 0
+      session.on_record("spec", function()
+        other = other + 1
+      end)
+      session.inject({ event = "Stop", at = 1, message = "Done." })
+      assert.same({}, heard)
+      assert.equals(1, other)
+      session.on_record("spec", nil)
+      session.inject({ event = "Stop", at = 2, message = "Done." })
+      assert.equals(1, other)
+    end)
+
+    it("hears them all, and may stop listening from inside", function()
+      local seen = 0
+      session.on_record("a", function()
+        seen = seen + 1
+        session.on_record("a", nil)
+      end)
+      session.on_record("b", function()
+        seen = seen + 1
+      end)
+      session.inject({ event = "Stop", at = 1, message = "Done." })
+      session.inject({ event = "Stop", at = 2, message = "Done." })
+      assert.equals(3, seen)
+      session.on_record("b", nil)
+    end)
+
+    it("is still listening in the next session", function()
+      session.stop()
+      session.start_scripted()
+      session.inject({ event = "Stop", at = 1, message = "Done." })
+      assert.equals(1, #heard)
+    end)
+
+    it("hears nothing from a session that is not heard through hooks", function()
+      session.stop()
+      session.inject({ event = "Stop", at = 1, message = "Done." })
+      assert.same({}, heard)
+    end)
+  end)
+
+  describe("an inline request", function()
+    before_each(function()
+      config.setup({ auto = { restore_idle_ms = 50 } })
+      session.start_scripted()
+      handlers()
+      go("corner")
+    end)
+
+    it("starts out not being one", function()
+      assert.is_false(session.inline_active())
+    end)
+
+    it("keeps the float from coming back on a request, or a finished turn", function()
+      session.set_inline(true)
+      assert.is_true(session.inline_active())
+      session.inject({
+        event = "PermissionRequest",
+        at = 1,
+        tool_name = "Bash",
+        tool_input = { command = "x" },
+      })
+      session.inject({ event = "Stop", at = 2, message = "Done." })
+      vim.wait(200)
+      assert.equals(0, calls.restore)
+    end)
+
+    it("still shows the corner to a hidden Claude on a request", function()
+      go("hidden")
+      session.set_inline(true)
+      session.inject({
+        event = "PermissionRequest",
+        at = 1,
+        tool_name = "Bash",
+        tool_input = { command = "x" },
+      })
+      assert.equals(1, calls.show)
+    end)
+
+    it("lets the float come back once it is over", function()
+      session.set_inline(true)
+      session.set_inline(false)
+      assert.is_false(session.inline_active())
+      session.inject({
+        event = "PermissionRequest",
+        at = 1,
+        tool_name = "Bash",
+        tool_input = { command = "x" },
+      })
+      assert.equals(1, calls.restore)
+    end)
+
+    it("does not outlive the session", function()
+      session.set_inline(true)
+      session.stop()
+      assert.is_false(session.inline_active())
+    end)
+  end)
+
   describe("the safety net", function()
     before_each(function()
       session.start_scripted()

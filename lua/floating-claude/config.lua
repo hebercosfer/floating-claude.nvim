@@ -119,7 +119,8 @@ M.defaults = {
     -- What a session request does while Claude is busy. "wait": hold it until
     -- Claude's turn ends, and drop it rather than touch a draft you left in
     -- Claude's input or answer a question Claude is asking. "send": send at
-    -- once and let Claude Code queue it.
+    -- once and let Claude Code queue it -- though still not over a draft you
+    -- left in Claude's input, nor while Claude is asking you something.
     when_busy = "wait",
     -- Virtual lines shown under the code, at most.
     lines = 3,

@@ -1,7 +1,8 @@
 -- The inline entry: the key and the command that start a request, and what
--- they do with the range. Dispatch to Claude is not built here yet -- a
--- submitted instruction is only shown back -- so these specs cover the shared
--- front: the range, the input, the lines, the key and the command.
+-- they do with the range. Headless dispatch is not built yet -- a submitted
+-- instruction is only shown back -- so these specs run as headless and cover the
+-- shared front: the range, the input, the lines, the key and the command.
+-- Session mode, which is built, is in inline_session_spec.lua.
 
 local config = require("floating-claude.config")
 local inline = require("floating-claude.inline")
@@ -61,14 +62,14 @@ describe("inline", function()
 
   describe("ask", function()
     it("opens the input under the last line of the range", function()
-      inline.ask({ line1 = 2, line2 = 4 })
+      inline.ask({ line1 = 2, line2 = 4, mode = "headless" })
       local wins = floats()
       assert.equals(1, #wins)
       assert.same({ 3, 0 }, vim.api.nvim_win_get_config(wins[1]).bufpos)
     end)
 
     it("shows the instruction under the range once submitted", function()
-      inline.ask({ line1 = 2, line2 = 4 })
+      inline.ask({ line1 = 2, line2 = 4, mode = "headless" })
       typed("add a retry<CR>")
       local row, items = shown(buf)
       assert.equals(3, row)
@@ -77,7 +78,7 @@ describe("inline", function()
     end)
 
     it("annotates the whole range, so <CR> acts anywhere in it", function()
-      inline.ask({ line1 = 2, line2 = 4 })
+      inline.ask({ line1 = 2, line2 = 4, mode = "headless" })
       typed("add a retry<CR>")
       vim.api.nvim_win_set_cursor(0, { 2, 0 })
       assert.is_true(lines.at_cursor(buf))
@@ -86,7 +87,7 @@ describe("inline", function()
     end)
 
     it("shows nothing when cancelled", function()
-      inline.ask({ line1 = 2, line2 = 2 })
+      inline.ask({ line1 = 2, line2 = 2, mode = "headless" })
       typed("<CR>")
       assert.is_nil(shown(buf))
       assert.equals(0, #floats())
@@ -106,7 +107,7 @@ describe("inline", function()
     end)
 
     it("takes a range given backwards", function()
-      inline.ask({ line1 = 4, line2 = 2 })
+      inline.ask({ line1 = 4, line2 = 2, mode = "headless" })
       typed("add a retry<CR>")
       local row = shown(buf)
       assert.equals(3, row)
