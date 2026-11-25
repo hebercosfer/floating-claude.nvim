@@ -376,3 +376,120 @@ inline = {
 - Starting Claude hidden when it is not running, and sending once it is ready.
 - An input that stays open for quick follow-ups (the hybrid look).
 - Backport to `support/nvim-0.10`.
+
+## Spike results
+
+### Diff in your window (Task 1)
+
+Run 2026-11-24 in headless Neovim 0.12.6 with floating-claude loaded
+(`claudecode = { auto_start = false }`) and claudecode.nvim at the tested pin,
+af04fbf, plus its current main, 8bcc7bb (v0.4.0+152), for comparison. Claude
+Code was not running: the spike drove `open_diff_blocking` from a coroutine and
+played the CLI's part after each answer (wrote the accepted text, then called
+`close_diff_by_tab_name`, as `close_tab` does). Every case ran with
+`open_in_new_tab` true and false, with and without Heber's
+`ClaudeCodeDiffOpened` autocmd, with one window and with two splits in the tab,
+and with four answers: `:w`, `:ClaudeCodeDiffDeny`, and yes or no in Claude's
+own prompt. For the prompt answers, the CLI calls `close_tab` while the diff is
+still pending (for yes, after writing the file itself).
+
+What held:
+
+- Showing the diff buffer in the origin window **first**, then closing
+  claudecode.nvim's window (or every window of its tab, when `tab_number` is
+  set), leaves the diff pending on both revisions. Accept and deny then reach
+  the coroutine (`FILE_SAVED`/`DIFF_REJECTED`) from the origin window, and the
+  cursor lands on the first change. Heber's autocmd makes no difference.
+  `close_tab` on a pending diff resolves it as `DIFF_REJECTED`, then cleans up
+  in the same call.
+- With one window in the tab (floats do not count), the brief's order works
+  as written: claudecode.nvim's cleanup leaves the origin window open, and
+  showing your file there after `ClaudeCodeDiffClosed` gives the new content.
+
+What did not:
+
+- **With two or more windows in the tab, claudecode.nvim's cleanup closes the
+  origin window.** It deletes the diff buffer (`nvim_buf_delete`), and Neovim
+  closes every window that shows a buffer it deletes unless that window is the
+  last one. `ClaudeCodeDiffClosed` fires after that, so it is too late to
+  switch the window back. `winfixbuf` does not stop it.
+- Closing claudecode.nvim's window **before** moving the buffer fails. At
+  af04fbf the buffer has `bufhidden=wipe` and is wiped at once; inside the
+  `ClaudeCodeDiffOpened` handler its `BufWipeout` reject does not fire (no
+  nested autocmds), so the diff sits pending with no buffer until `close_tab`.
+  Outside the handler both revisions reject it.
+- Leaving claudecode.nvim's window open shows the diff twice (a vsplit, or a
+  second tab) and still loses the origin window at cleanup.
+- af04fbf has no `_register_reject_when_hidden` (it arrived in 36f4a0e, after
+  the pin). There the reject comes from the `bufhidden=wipe` wipe; at 8bcc7bb
+  from `WinClosed`/`BufHidden`. The safe order is the same for both.
+- Switching the window back on a **scheduled** callback from the answer works
+  for `:w` and deny, but not for an answer in Claude's prompt. There,
+  `close_tab` resolves the diff and deletes its buffer in one call, so the
+  scheduled switch comes too late. With two splits, the origin window is gone.
+
+The order Task 6 must use. It held in every case on both revisions:
+
+1. Before asking, note the origin window and your file's buffer.
+   `data.target_window` is not the origin window when the diff opens in a new
+   tab.
+2. In `User ClaudeCodeDiffOpened`, synchronously:
+   `nvim_win_set_buf(origin_win, diff_buf)` (`diff_buf` from
+   `data.diff_window`), copy that window's cursor, then close `data.diff_window`
+   or, if `data.tab_number` is set, every non-float window of that tab. Make the
+   origin tab and window current. (Deferring this with `vim.schedule` also held.)
+3. Wrap the diff's `resolution_callback`
+   (`require("claudecode.diff")._get_active_diffs()[tab_name]`). The wrapper
+   switches back, then calls the original. The switch back is
+   `vim.bo[diff_buf].bufhidden = "hide"` (only while the buffer is valid), then
+   `nvim_win_set_buf(origin_win, file_buf)`. The wrapper does this twice:
+   - **synchronously**, which is what saves the window when Claude's prompt is
+     answered: `close_tab` calls the callback and then deletes the buffer;
+   - and once more on `vim.schedule`, if the window does not show your file by
+     then. For `:w`, Neovim puts the diff buffer back in the window once its
+     `BufWriteCmd` returns, undoing the synchronous switch.
+
+   `bufhidden = "hide"` comes first because at af04fbf the diff buffer is
+   modified with `bufhidden=wipe`, and switching away from it fails with E37.
+   Once the window shows your file, the cleanup deletes a hidden buffer and
+   leaves the window alone.
+4. On `User ClaudeCodeDiffClosed`, `:checktime`. claudecode.nvim also reloads
+   the file 100 ms after `close_tab`.
+
+Step 3 relies on claudecode.nvim internals: `_get_active_diffs()` and the
+`resolution_callback` field. claudecode.nvim has no event for an answered diff.
+The capability check therefore also checks that `_get_active_diffs()` hands back
+a `resolution_callback` function for the open diff; without one, the diff opens
+as today (option a).
+
+One option needs no internals and also held in every case, the prompt answers
+included: show the diff buffer in a float that exactly covers the origin
+window, not in the window itself. The cleanup then closes the float, and your
+window is never touched. It costs following the window's size and position, and
+the diff is not literally in your window. An upstream event for an answered
+diff, or a cleanup that leaves windows it did not open, would remove the need
+for either.
+
+Not covered:
+
+- A live Claude Code CLI. Its `close_tab` and its file write were played by the
+  spike.
+- When `close_tab` arrives relative to the answer. The spike called it 50 ms
+  after a Neovim answer; step 3's synchronous switch makes the order not matter
+  for the window, but this was not measured.
+- New-file diffs (`is_new_file`, and `on_new_file_reject`).
+- `'nohidden'`.
+- The user closing the origin window, or switching it to another buffer, while
+  the diff is open.
+- `:ClaudeCodeDiffAccept`, `<leader>aa`/`<leader>ad`, `closeAllDiffTabs`, and a
+  second diff replacing the first under the same tab name.
+- floating-claude's terminal float or corner on screen during the diff, and
+  `keep_terminal_focus`.
+- A tab with more than two windows, or with the origin window in another tab
+  than the one Neovim is in.
+
+Result: `diff_in_window = true`, using steps 1–4 above. In the spike, that
+approach held in every case: 64 of 64, on both revisions, with the new tab on and
+off, with and without Heber's autocmd, one window and two splits, and all four
+answers. The literal order in the brief, which switches back after
+`ClaudeCodeDiffClosed`, fails whenever the tab has two or more windows.
