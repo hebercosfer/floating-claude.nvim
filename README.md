@@ -39,6 +39,155 @@ comes out the same way twice. It borrows the plugin's defaults while it runs and
 hands your own settings back at the end; `:FloatingClaudeDemo stop` ends it
 early.
 
+## Inline mode
+
+Ask Claude about the code you are looking at, from where you are looking at it.
+Select some lines, or just stand on one, and press `<leader>ai`. A small input
+opens right under the code. Type what you want and press `<CR>`:
+
+```
+ 12 │ local function fetch(url)
+ 13 │   return http.get(url)
+ 14 │ end
+    ╭────────────────────────────────╮
+    │ add a retry with backoff▏      │
+    ╰────────────────────────────────╯
+```
+
+`<C-j>` adds a line instead of sending (so does `<S-CR>`, in a terminal that
+tells it apart from `<CR>`), `<Esc>` leaves insert mode, and `q` or `<Esc>` in
+normal mode cancels. The input closes, and the exchange carries on under the
+code as a few dim lines:
+
+```
+ 12 │ local function fetch(url)
+ 13 │   return http.get(url)
+ 14 │ end
+    ┊ ▸ add a retry with backoff
+    ┊ Read net.lua
+    ┊ Claude: I'll wrap http.get in a loop with…
+```
+
+Your request is typed into the Claude the float is already running, so it joins
+that conversation — its context, tools, permissions and history — and shows in
+the float's transcript as if you had typed it there. That is the difference from
+a plugin that starts a `claude -p` of its own for each question. The lines are
+virtual text, never in your file or its undo history, and they move with the
+code as lines above them come and go. They show what you asked, the tool Claude
+is running and the latest of what it says, up to `inline.lines` of them; when
+Claude asks you something, that question is always among them. `<CR>` on them
+opens the float on Claude's prompt, and `:FloatingClaudeInline clear` takes them
+down.
+
+Claude reads the file on disk, so a modified buffer is written (`:update`)
+before the request goes; if it cannot be written, the request stops and says
+why. Inline mode does not start Claude: with none running, it says so. One
+request runs at a time, and asking again about the same lines is just another
+request in the same conversation, so Claude has the earlier one.
+
+When Claude edits the file, its diff opens in **your** window, unified, with the
+cursor on the change — you asked from there, and a tab of its own would take you
+away from the code the question was about:
+
+```
+ 12 │ local function fetch(url)
+ 13 │ - return http.get(url)
+ 13 │ + for attempt = 1, 4 do
+    ┊ ▸ add a retry with backoff
+    ┊ Claude is asking you something · <CR> to open Claude
+```
+
+`:w` accepts it and `:ClaudeCodeDiffDeny` rejects it (`<leader>ad` among the
+[default keys](#keys)). To say "no, and do this instead", `<CR>` on the lines
+opens the float on Claude's own prompt. Once the diff is answered, your window
+has your file back, reloaded, with the cursor where the change landed. A diff for
+another file during the same turn opens where claudecode.nvim puts it, laid out
+unified too, but is never moved into your window.
+
+### When Claude is busy
+
+`inline.when_busy = "wait"` (the default) holds your request until Claude's turn
+ends, and the lines say so; `"send"` sends it at once and lets Claude Code queue
+it behind the turn. Either way, inline mode never touches what you typed. If
+there is a draft in Claude's input, or Claude is asking you something, the
+request is dropped, not retried, and the lines say why. `<CR>`
+on them opens the float, where your draft or Claude's question is waiting. A
+prompt Claude Code suggests in an empty input is not a draft; the request takes
+its place.
+
+To tell your draft from a suggestion, the plugin notes — only that it happened,
+never what — when you type or paste into Claude's terminal while Claude runs
+(with inline mode on). It reads the input box off the screen as you do, to see
+that there is a box to type into, and again just before a request goes. What it
+watches, and what it keeps, is under [Privacy and security](#privacy-and-security).
+
+While an inline request is in flight, `auto.restore_on_input` does not bring the
+big float back from the corner: Claude is working on the code in front of you,
+which it would cover. The corner works as usual, so a permission Claude asks for
+in the middle of one still shows up there, and a forgotten request cannot stall
+the session unseen. `auto.show_hidden` says when a Claude you hid comes back.
+
+The diff is the one other thing that moves the float. A diff in your window
+leaves it alone, since nothing is in its way, but any other diff is handled as
+every diff is, minimizing the float while it is open and bringing it back after:
+another file's, or the request's own when it opens in a tab (`diff_in_window =
+false`, or a claudecode.nvim without the unified layout).
+
+### What it needs
+
+Two things beyond the plugin's own [requirements](#requirements):
+
+- **Claude's hooks.** That takes a Claude Code new enough to be heard through
+  them, which the [Requirements](#requirements) give, and `hooks.enabled` on. A
+  request is followed to the end of its turn by what Claude reports, so without
+  them inline mode refuses to send one and says why, rather than guess.
+- **A claudecode.nvim that can open a unified diff for your window.** That is
+  feature-detected, not a version check (`compat.unified_diff()`; see
+  [Compatibility](#compatibility)). Without it the request still goes, and Claude's
+  edit opens in claudecode.nvim's own layout, in a new tab, as every other diff
+  does.
+
+`:checkhealth floating-claude` has an "inline mode" section that says which of
+these you have, what you lose without one, and whether the key is mapped.
+
+### Options
+
+```lua
+inline = {
+  -- false turns inline mode off: no key, and the command does nothing.
+  enabled = true,
+  -- What a request does while Claude is busy. "wait": hold it until Claude's
+  -- turn ends, and drop it rather than touch a draft you left in Claude's input
+  -- or answer a question Claude is asking. "send": send at once and let Claude
+  -- Code queue it -- though still not over a draft you left in Claude's input,
+  -- nor while Claude is asking you something.
+  when_busy = "wait",
+  -- Virtual lines shown under the code, at most.
+  lines = 3,
+  -- Rows the input grows to before it scrolls.
+  max_input_height = 6,
+  -- Layout of a diff Claude opens for an inline request: "unified" is
+  -- claudecode.nvim's own, or false to keep the layout you configured there.
+  diff_layout = "unified",
+  -- Show that diff in the window you asked from, and give your file back once
+  -- it is resolved. false opens it in a tab, as other diffs do.
+  diff_in_window = true,
+},
+keymaps = {
+  -- Normal and visual mode, set globally: on the cursor line, or the selected
+  -- lines. A mapping of your own on the key, in either mode, is left alone.
+  -- Not mapped while `inline.enabled` is false.
+  inline = "<leader>ai",
+},
+```
+
+`:FloatingClaudeInline` does what the key does, on its range or the cursor
+line.
+
+[float-claude.nvim](https://github.com/kova1max/float-claude.nvim) maps the same
+`<leader>ai` by default. The two overlap, so nothing here arbitrates: if you
+install both, remap one of them — `keymaps.inline` is this plugin's.
+
 ## Requirements
 
 - Neovim 0.11+
@@ -161,9 +310,9 @@ require("floating-claude").setup({
 | `<leader>ad` | normal            | `:ClaudeCodeDiffDeny`                         |
 
 The file trees are NvimTree, neo-tree, oil, mini.files, netrw and the snacks
-explorer. floating-claude's own `<leader>aq` (hide), `<leader>ae` (events) and
-`<C-x><C-m>` (minimize, inside the float) live under
-[`keymaps`](#configuration).
+explorer. floating-claude's own `<leader>aq` (hide), `<leader>ae` (events),
+`<leader>ai` ([inline mode](#inline-mode)) and `<C-x><C-m>` (minimize, inside the
+float) live under [`keymaps`](#configuration).
 
 `keys` changes that list with lazy.nvim-style entries — any key, any command or
 function, in any `mode`:
@@ -258,6 +407,16 @@ require("floating-claude").setup({
   -- everything; `keep` is how many events :FloatingClaudeEvents can show you
   -- (0 keeps none). See "Privacy and security".
   hooks = { enabled = true, keep = 50 },
+  -- Ask Claude about the code in front of you: see "Inline mode" for what each
+  -- option does.
+  inline = {
+    enabled = true,
+    when_busy = "wait",      -- or "send"
+    lines = 3,
+    max_input_height = 6,
+    diff_layout = "unified", -- or false
+    diff_in_window = true,
+  },
   auto = {
     minimize_on_diff = true,   -- minimize when an edit-approval diff opens
     -- What brings the float back from the corner: "idle" when Claude finishes
@@ -283,6 +442,9 @@ require("floating-claude").setup({
     -- Normal-mode mapping that opens what the plugin heard from Claude, as
     -- Claude sent it. Same rules as `hide`.
     events = "<leader>ae",
+    -- Normal- and visual-mode mapping that asks Claude about the cursor line or
+    -- the selected lines (see "Inline mode"). Same rules as `hide`, per mode.
+    inline = "<leader>ai",
   },
   -- Mappings for claudecode.nvim's commands: true for the list under "Keys",
   -- a list of entries to change it, false for none.
@@ -303,7 +465,8 @@ but none of that survives the trip: Neovim keeps a terminal buffer's cell
 attributes inside libvterm's screen state rather than in the buffer, so the
 scraped text arrives plain and there is nothing to copy. These groups are all
 `default` links, so a colourscheme that defines them wins, and your own
-`:highlight` wins over both.
+`:highlight` wins over both. The last two paint the lines of
+[inline mode](#inline-mode) rather than the notification.
 
 | Group                   | Links to         | Paints                                  |
 | ----------------------- | ---------------- | --------------------------------------- |
@@ -316,6 +479,8 @@ scraped text arrives plain and there is nothing to copy. These groups are all
 | `FloatingClaudePrompt`  | `Comment`        | the echo of what you typed              |
 | `FloatingClaudeMore`    | `Comment`        | the `…` marking what did not fit        |
 | `FloatingClaudeError`   | `DiagnosticError`| a turn that failed (rate limit, API error) |
+| `FloatingClaudeInline`  | `Comment`        | the [inline lines](#inline-mode) under your code |
+| `FloatingClaudeInlineAsk` | `Question`     | the one of them where Claude asks you something |
 
 ```lua
 -- e.g. the timer without your colourscheme's italic comments
@@ -331,6 +496,7 @@ vim.api.nvim_set_hl(0, "FloatingClaudeDetail", { link = "LineNr" })
 | `:FloatingClaudeToggle`        | `require("floating-claude").toggle_mini()`  | Flip between the two                     |
 | `:FloatingClaudeHide`          | `require("floating-claude").hide()`         | Take both off the screen (`<leader>aq`)  |
 | `:FloatingClaudeEvents`        | `require("floating-claude").events()`       | Show what the plugin heard from Claude (`<leader>ae`) |
+| `:FloatingClaudeInline [clear]` | —                                          | Ask Claude about the range, or the cursor line, as [inline mode](#inline-mode) does (`<leader>ai`); `clear` takes its lines down |
 | `:FloatingClaudeDemo [auto]`   | `require("floating-claude").demo(opts)`     | Run the [guided tour](#see-it-move)      |
 | `:FloatingClaudeDemo stop`     | `require("floating-claude").demo_stop()`    | End the tour early                       |
 
@@ -514,6 +680,26 @@ it:
   stays open for as long as Claude runs: a port given up early could be taken
   by another program that would answer in its place.
 
+[Inline mode](#inline-mode) watches one more thing, for one purpose: telling a
+draft you typed in Claude's input from the prompt Claude Code suggests there, so
+that a request is never sent over your text. Nothing it sees is stored or sent
+anywhere, and `inline.enabled = false` turns it all off, from the next time
+Claude starts.
+
+- **Keys typed into Claude's terminal.** While Claude runs, a `vim.on_key`
+  callback is called for every key you press in Neovim. It ignores all of them
+  but text typed into the Claude terminal buffer (and a put there from
+  terminal-normal mode), and for those it keeps only that it happened, and when.
+  The key is checked for being text, and dropped.
+- **Pastes into it.** `vim.paste` is wrapped for the same reason: a paste into
+  the Claude terminal sets the same flag, and goes on exactly as it would have.
+  Anything else that wraps `vim.paste` after it is left in place, and passes
+  through it.
+- **The input box.** Read off the screen when you type into Claude's terminal
+  (only to see that there is a box, not a dialog, to type into) and again as a
+  request is about to go. Only whether it is empty is used; what it holds is
+  dropped.
+
 ## Compatibility
 
 The supported pair is pinned in `compat.lua` and checked the first time Claude
@@ -537,6 +723,16 @@ interrupt)`. A UI that renders neither parses as "always idle".
 Hearing Claude through its hooks needs Claude Code 2.1.301 or newer — the first
 verified to post the events the listener reads. An older CLI is read off the
 screen, as above.
+
+[Inline mode](#inline-mode) needs those hooks, and for its diff in your window a
+claudecode.nvim whose config accepts `layout = "unified"`, whose unified layout
+loads, and that still exports the table of diffs open right now
+(`compat.unified_diff()` checks all three). The last is an internal: claudecode.nvim
+has no event for an answered diff, so for the diff it hands to your window the
+plugin wraps that diff's callback, to give your window its file back before
+claudecode.nvim's cleanup closes it. With
+a claudecode.nvim that fails the check the request still goes, and the edit
+opens as any other does: in claudecode.nvim's own layout, in a new tab.
 
 A mismatch is a warning, never a hard failure: the float still works, the
 automatic minimize/restore is what degrades. To freeze the tested pair instead
@@ -644,6 +840,7 @@ does not fail the run.
 | `terminal.lua`      | The big float, the job, minimize/restore                        |
 | `notification.lua`  | The corner notification window                                  |
 | `hooks/`            | Hearing Claude: the listener thread, its wire format, the session |
+| `inline/`           | Inline mode: the input, the lines under your code, the request, the diff in your window |
 | `attention.lua`     | What brings Claude back, and when                               |
 | `watcher.lua`       | Diffs, and the poll loop when reading the screen                |
 | `parser.lua`        | Reading Claude's screen: the status line, and the fallback      |

@@ -5,10 +5,141 @@
 -- tested against.
 
 local compat = require("floating-claude.compat")
+local config = require("floating-claude.config")
 
 local M = {}
 
 local health = vim.health
+
+-- The command claudecode.nvim starts Claude with, which is what the CLI checks
+-- must ask about: `terminal_cmd` in its config, or "claude" when it names none
+-- (or is not set up yet).
+---@return string
+local function launch_command()
+  local cmd = vim.tbl_get(package.loaded, "claudecode", "state", "config", "terminal_cmd")
+  return (type(cmd) == "string" and cmd ~= "") and cmd or "claude"
+end
+
+-- Inline mode: what it leans on, and what you lose without each. The hooks are
+-- what a request is followed by; the unified diff is how its edit reaches your
+-- window; the key is how you ask.
+---@param cmd string|nil the command Claude is started with; read from claudecode.nvim when left out
+---@param cli string|false|nil that CLI's version, when the caller has asked already: false for one it could not read
+function M.inline(cmd, cli)
+  health.start("floating-claude.nvim: inline mode")
+  local options = config.options.inline
+  if not options.enabled then
+    health.info("turned off (inline.enabled = false): no key, and the command does nothing")
+    return
+  end
+
+  -- Claude's hooks ---------------------------------------------------------------
+  local function without_hooks(why)
+    health.warn(
+      ("Claude is not heard through its hooks (%s), so inline mode refuses every request until it is"):format(
+        why or "no reason given"
+      ),
+      {
+        ("Use Claude Code %s or newer, leave hooks on (not `hooks = false`), start claude without a --settings of your own, then restart Claude"):format(
+          compat.minimum.hooks
+        ),
+      }
+    )
+  end
+
+  local session = require("floating-claude.hooks.session")
+  if require("floating-claude.state").buf_valid() then
+    local info = session.info()
+    if info.active then
+      health.ok(
+        "Claude is heard through its hooks, so a request is followed to the end of its turn"
+      )
+    else
+      without_hooks(info.reason)
+    end
+  elseif not config.options.hooks.enabled then
+    without_hooks("hooks = false in setup()")
+  else
+    -- Claude is not running, so nothing has been decided yet: ask what the start
+    -- will decide, as session.prepare does and in its order -- a command with a
+    -- --settings of its own, then the CLI's version.
+    cmd = cmd or launch_command()
+    if cli == nil then
+      cli = compat.cli_version(cmd)
+    end
+    if cmd:find("--settings", 1, true) then
+      without_hooks("the claude command already passes --settings")
+    elseif not cli then
+      -- As the CLI check does: the command may start by a path we cannot see.
+      health.warn(
+        ("could not read the Claude Code version from `%s`, so it is not known whether inline mode will hear Claude through its hooks"):format(
+          cmd
+        ),
+        {
+          "Install the Claude Code CLI, or ignore this if claudecode.nvim launches it by another path",
+        }
+      )
+    elseif compat.older(cli, compat.minimum.hooks) then
+      without_hooks(
+        ("Claude Code %s is older than %s, the first with the hooks this plugin uses"):format(
+          cli,
+          compat.minimum.hooks
+        )
+      )
+    else
+      health.ok("Claude Code carries the hooks; they are set up when Claude starts")
+    end
+  end
+
+  -- The unified diff -------------------------------------------------------------
+  if not compat.claudecode().installed then
+    health.info("claudecode.nvim is not installed, so there is no edit to show (see above)")
+  elseif options.diff_in_window == false then
+    health.info("inline.diff_in_window = false: an edit opens in a new tab, as other diffs do")
+  elseif compat.unified_diff() then
+    if options.diff_layout == false then
+      health.info(
+        "inline.diff_layout = false keeps your own layout: an edit shows in your window only if that is unified"
+      )
+    else
+      health.ok("claudecode.nvim can show an edit as a unified diff in your window")
+    end
+  else
+    health.warn(
+      "this claudecode.nvim cannot show an edit as a unified diff in your window: it opens in claudecode.nvim's own layout, in a new tab, as other diffs do",
+      {
+        ("Update claudecode.nvim; this plugin is tested against %s (%s)"):format(
+          compat.tested.claudecode.version,
+          compat.tested.claudecode.commit
+        ),
+      }
+    )
+  end
+
+  -- The key ----------------------------------------------------------------------
+  local lhs = config.options.keymaps.inline
+  if not lhs then
+    health.info(
+      "not mapped (keymaps.inline = false); :FloatingClaudeInline asks about the cursor line or a range"
+    )
+    return
+  end
+  local mapped = require("floating-claude.keymaps").mapped("inline")
+  local missing = {}
+  for _, mode in ipairs({ { "n", "normal" }, { "x", "visual" } }) do
+    if mapped[mode[1]] ~= lhs then
+      table.insert(missing, mode[2])
+    end
+  end
+  if #missing == 0 then
+    health.ok(("%s asks Claude about the code, in normal and visual mode"):format(lhs))
+  else
+    health.warn(("%s is not mapped in %s mode"):format(lhs, table.concat(missing, " and ")), {
+      "A mapping of your own on the key is left alone: remap one of them, or pick a free key with keymaps.inline",
+      "Or call require('floating-claude').setup(), which maps it; :FloatingClaudeInline asks without a key",
+    })
+  end
+end
 
 function M.check()
   health.start("floating-claude.nvim")
@@ -58,9 +189,10 @@ function M.check()
   end
 
   -- Claude Code CLI ------------------------------------------------------------
-  local cli = compat.cli_version("claude")
+  local cmd = launch_command()
+  local cli = compat.cli_version(cmd)
   if not cli then
-    health.warn("could not run `claude --version`", {
+    health.warn(("could not run `%s --version`"):format(vim.split(vim.trim(cmd), "%s+")[1]), {
       "Install the Claude Code CLI, or ignore this if claudecode.nvim launches it by another path",
     })
   elseif compat.older(cli, compat.minimum.claude_code) then
@@ -118,6 +250,8 @@ function M.check()
       )
     end
   end
+
+  M.inline(cmd, cli or false)
 end
 
 return M

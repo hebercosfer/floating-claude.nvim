@@ -11,6 +11,57 @@ Claude Code pair in `compat.lua` moves — is written out once, in the README's
 
 ## [Unreleased]
 
+### Added
+
+- Inline mode: ask Claude about the code in front of you, from where it is.
+  Select lines, or stand on one, and press `<leader>ai` (`keymaps.inline`, normal
+  and visual mode): an input opens under the code, and what you type is sent
+  into the Claude the float is already running, so it joins that conversation
+  with its context, tools and permissions. What follows shows as a few virtual
+  lines under the code — what you asked, the tool Claude runs, the latest of
+  what it says, and the question when it asks you one — and `<CR>` on them
+  opens the float on Claude's prompt. `:FloatingClaudeInline` does the same on
+  a range, and `:FloatingClaudeInline clear` takes the lines down. A modified
+  buffer is written first, since Claude reads the file on disk.
+- When Claude edits the file, claudecode.nvim's diff opens unified in the window
+  you asked from, cursor on the change, and gives your file back once it is
+  answered. Needs a claudecode.nvim that passes the new `compat.unified_diff()`
+  check; without one, or with `inline.diff_in_window = false`, the edit opens in
+  its own layout in a new tab, as other diffs do. A diff for another file during
+  the turn also opens unified, where claudecode.nvim puts it, but is never moved
+  into your window.
+- `inline.when_busy` chooses what a request does while Claude is busy: `"wait"`
+  (the default) holds it until Claude's turn ends, `"send"` sends it at once and
+  lets Claude Code queue it. Either way inline mode never touches what you
+  typed: with a draft in Claude's input, or Claude asking you something, the
+  request is dropped and the lines say why. Also under `inline`: `enabled`,
+  `lines`, `max_input_height`, `diff_layout` and `diff_in_window`.
+- An "inline mode" section in `:checkhealth floating-claude` says whether
+  Claude's hooks are active, whether claudecode.nvim can show an edit unified in
+  your window, and which key is mapped, with what you lose in each case.
+- `FloatingClaudeInline` and `FloatingClaudeInlineAsk` highlight the lines under
+  the code, and the one where Claude asks you something.
+
+### Changed
+
+- While an inline request is in flight, `auto.restore_on_input` does not bring
+  the big float back from the corner, since it would cover the code Claude is
+  working on. The corner works as before. A diff in your window leaves the float
+  alone, nothing being in its way; any other diff — another file's, or the
+  request's own when it opens in a tab — minimizes and restores it as every diff
+  does.
+- With inline mode on, the plugin notes that you typed or pasted into Claude's
+  terminal (never what), and reads Claude's input box off the screen before a
+  request goes, so that it never sends over a draft of yours.
+
+### Compatibility
+
+- Inline mode needs Claude's hooks, so a Claude Code new enough to be heard
+  through them, and for the diff in your window a claudecode.nvim that passes
+  `compat.unified_diff()`. The pinned pair has not moved.
+- float-claude.nvim maps the same default `<leader>ai`. If you install both,
+  remap one of them.
+
 ## [0.5.0] - 2026-11-05
 
 Claude is heard through its own events instead of read off its screen. The

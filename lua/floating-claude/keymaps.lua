@@ -51,6 +51,14 @@ local ACTIONS = {
 ---@type table<string, table<string, string>>
 local mapped = {}
 
+--- Where an action of ours is mapped right now, as mode -> lhs: empty when none
+--- of its keys were set (switched off, or a mapping of your own was there first).
+---@param name string
+---@return table<string, string>
+function M.mapped(name)
+  return vim.deepcopy(mapped[name] or {})
+end
+
 function M.apply()
   for _, by_mode in pairs(mapped) do
     for mode, lhs in pairs(by_mode) do
