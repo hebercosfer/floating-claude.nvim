@@ -1,0 +1,37 @@
+
+
+❯ @lua/floating-claude/state.lua#L5-8 Answer in one sentence:                                                                                                           
+  what are these lines for?                                                                                                                                             
+  Do not use any tools.                                                                                                                                                 
+  If you were not given the lines, say so.                                                                                                                              
+  Keep it short.                                                                                                                                                        
+  ⎿  Read lua/floating-claude/state.lua (4 lines)
+
+● These lines hold the terminal buffer, its big float window and its job ID, each starting at -1 to mean "not open yet."
+
+✻ Churned for 4s · done 2:26 PM
+
+❯ In five words or fewer, what is Lua?                                                                                                                                  
+
+● A lightweight, embeddable scripting language.
+
+✻ Brewed for 4s · done 2:27 PM
+
+❯ Answer in one word each, without tools:                                                                                                                               
+  1. Is Lua 1-indexed?                                                                                                                                                  
+  2. Is Neovim a fork of Vim?                                                                                                                                           
+  3. Does tmux have windows?                                                                                                                                            
+  4. Is JSON a language?                                                                                                                                                
+
+● 1. Yes
+  2. Yes
+  3. Yes
+  4. No
+
+✻ Brewed for 4s · done 2:27 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Model: Opus 5.5 | Ctx Used: 10.0% | Session: 10.0% | Weekly: 10.0% | Reset: 1hr 0m | Weekly Reset: 1d 0hr 0m
+  ⏵⏵ auto mode on (shift+tab to cycle) · ← 3 agents

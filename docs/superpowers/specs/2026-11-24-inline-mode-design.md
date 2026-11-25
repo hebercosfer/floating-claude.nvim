@@ -493,3 +493,80 @@ approach held in every case: 64 of 64, on both revisions, with the new tab on an
 off, with and without Heber's autocmd, one window and two splits, and all four
 answers. The literal order in the brief, which switches back after
 `ClaudeCodeDiffClosed`, fails whenever the tab has two or more windows.
+
+### Pasting into the TUI (Task 2)
+
+Run 2026-11-24 against a live Claude Code 2.1.331 in Heber's Neovim config
+(floating-claude from his lazy install on this branch, claudecode.nvim), in a
+throwaway clone of the repo, driven from outside over `--remote-expr`. Every
+paste was `chansend(state.jobid, "\27[200~" .. text .. "\27[201~")`, with lines
+joined by `\n`. Nine read-only prompts in all. The permission mode was auto, so
+no read asked for permission.
+
+What `UserPromptSubmit.prompt` carries:
+
+- **One line, and three lines:** the text verbatim, line breaks as `\n`. A
+  three-line paste shows in the box as three lines.
+- **Five lines:** the box shows `[Pasted text #1 +4 lines]` (the footer says
+  "paste again to expand"), and the hook gets the text verbatim, wrapped:
+  `"\n\n<pasted_content id=\"089a\">\n" .. text .. "\n</pasted_content id=\"089a\">\n"`.
+  The id was the same on both five-line pastes, so do not match on it. Four
+  lines and a long single line were not tried, so where the threshold sits
+  (lines or characters) is unknown.
+
+Either way the instruction is in the prompt as sent, so step 5's match (the
+prompt contains the instruction, normalised for whitespace) holds as written.
+
+- **Mention form: `at`.** `@lua/floating-claude/state.lua#L1-10 <instruction>`
+  works, typed through a paste. Claude Code attaches lines 1–10 itself before
+  the turn starts: the screen shows `⎿  Read lua/floating-claude/state.lua (10
+  lines)` under the echoed prompt, and the transcript has a file attachment
+  with `range = { offset = 1, limit = 10 }` (`numLines` 10 of `totalLines`
+  118). The answer described those ten lines and nothing past them. No
+  `PreToolUse` or `PostToolUse` fired for it, so the inline lines get no
+  "Reading" line for the range from the hooks; a Read Claude makes later, of
+  its own accord, does fire them. The mention also worked as the first line of
+  a three-line paste (`#L12-14`, "3 lines") and of a five-line paste that
+  collapsed to `[Pasted text …]` (`#L5-8`, "4 lines"), where the hook prompt
+  carries it inside `<pasted_content>`. The path is relative to Claude's cwd.
+- **The send:** the `\r` does not need its own `chansend`. Sent separately
+  (half a second or so later) and in the same `chansend` as the paste, it
+  submitted both a one-line paste and a collapsed five-line paste; nothing
+  needs waiting for.
+- **Vim mode:** `/vim` no longer exists in 2.1.331 ("No commands match"). It
+  is `/config` → "Editor mode" (`normal` or `vim`), saved as `editorMode` in
+  `~/.claude/settings.json`. In INSERT the footer line under the box starts
+  with `-- INSERT --`; NORMAL shows no marker, so its screen is the same as
+  with vim mode off. Neither blocks: a paste in NORMAL lands in the box as
+  text, and `\r` in NORMAL submits it. `input_draft()` needs nothing for vim
+  mode, and there is no `vim_normal.txt` fixture.
+
+The input box, from the fixtures in `tests/fixtures/input_box/` (raw
+`state.buf` lines, 168 columns, 37 rows): the box is the rows between the last
+two rules. The first row is `❯` and a no-break space (U+00A0), then the text;
+an empty box is `❯` and the no-break space, sometimes with trailing spaces.
+Continuation rows of a multi-line draft are indented two spaces, and the top
+rule moves up a row; in `draft_multiline.txt` the row above it is blank (all
+spaces). `draft.txt` and `draft_multiline.txt` also have Claude Code's `Jump to
+bottom (ctrl+End) ↓` drawn over the transcript, a few rows above the box, and
+`draft_multiline.txt` starts with Claude Code's welcome banner. The fixtures are
+the captures with three things made neutral, none of them inside the box: the
+banner's cwd (`~/work/repo`) and plan name, and the usage numbers in the status
+line below the bottom rule.
+
+Open for the builder: **a box holding text is not always a draft.** With
+Claude Code's "Prompt suggestions" setting on (its default), the box often
+shows a suggested next prompt after a turn, as dim text (`suggestion.txt`:
+`❯ In three words, what is Neovim?`). In the buffer it reads exactly like a
+typed draft (`draft.txt`), and it comes back whenever the box is emptied. A new
+session's empty box shows a placeholder the same way (`❯ Try "fix typecheck
+errors"`). A paste replaces the suggestion, and the hook carried only the
+pasted text, so sending over one is safe. But `"wait"` would refuse after most
+turns if it read every non-empty box as a draft. `vim.inspect_pos()` reports
+nothing for terminal cells, so the dimness is not readable from the buffer.
+One way out: count the box as a draft only if you have typed into Claude's
+terminal since the last `UserPromptSubmit`.
+
+Not covered: a paste while Claude is mid-turn (`when_busy = "send"`), Enter on
+an empty box showing a suggestion, a four-line or long one-line paste, a
+mention whose range runs past the end of the file, and a path with spaces.

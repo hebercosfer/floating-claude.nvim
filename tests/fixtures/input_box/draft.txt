@@ -1,0 +1,37 @@
+❯ In one sentence, what is a Neovim terminal buffer? Do not use any tools.                                                                                              
+
+● 1. :checkhealth: runs diagnostics on Neovim and plugins and reports problems.
+  2. Extmark: a mark on a buffer position that moves with edits, used for highlights and virtual text.
+  3. chansend(): sends data to a channel, such as a job's or terminal's stdin.
+  4. Bracketed paste: the terminal wraps pasted text in escape codes so apps don't treat it as typed keys.
+
+✻ Crunched for 4s · done 2:25 PM
+
+❯ @lua/floating-claude/state.lua#L1-10 In one sentence, what do these lines say?                                                                                        
+  ⎿  Read lua/floating-claude/state.lua (10 lines)
+
+● These lines begin a shared state table holding the live Claude Code terminal's handles. They are its buffer, its float window and its job ID, plus the buffer of the
+  minimized corner window that shows the latest message. Each starts at -1, meaning not open yet.
+
+✻ Crunched for 5s · done 2:25 PM
+
+❯ @lua/floating-claude/state.lua#L12-14 Answer in one sentence:                                                                                                         
+  what are these lines for?                                                                                                                                             
+  Do not use any tools.                                                                                                                                                 
+  ⎿  Read lua/floating-claude/state.lua (3 lines)
+
+● Line 12 sets up an empty slot for the corner notification's timer. Lines 13–14 are the comment for the next field, which stores where you last dragged the
+  notification (row and column) for the rest of the session, with nil meaning the bottom-right corner.
+
+✻ Sautéed for 5s · done 2:26 PM
+
+❯ @lua/floating-claude/state.lua#L5-8 Answer in one sentence:                                                                                                           
+  what are these lines for?                                                                                                                                             
+  Do not use any tools.                                                                                                                                                 
+  If you were not given the lines, say so.                             Jump to bottom (ctrl+End) ↓                                                                      
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ explain the watcher
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  Model: Opus 5.5 | Ctx Used: 10.0% | Session: 10.0% | Weekly: 10.0% | Reset: 1hr 0m | Weekly Reset: 1d 0hr 0m
+  ⏵⏵ auto mode on (shift+tab to cycle)
