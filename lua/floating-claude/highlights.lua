@@ -1,4 +1,4 @@
--- The notification's own highlight groups.
+-- The plugin's own highlight groups: the notification's, and the inline lines'.
 --
 -- Claude's TUI colours its status line, its bullets and its tool results, and
 -- none of that survives the trip into the notification: Neovim keeps a terminal
@@ -25,6 +25,8 @@ local GROUPS = {
   FloatingClaudePrompt = "Comment", -- the echo of what you typed
   FloatingClaudeMore = "Comment", -- the … marking what did not fit
   FloatingClaudeError = "DiagnosticError", -- a turn that failed (rate limit, API error)
+  FloatingClaudeInline = "Comment", -- the inline lines under your code
+  FloatingClaudeInlineAsk = "Question", -- the one where Claude is asking you something
 }
 
 local function define()

@@ -35,3 +35,35 @@ end, {
     end, { "auto", "stop" })
   end,
 })
+
+-- Ask Claude about the lines the command is given, or the cursor line: the
+-- same as the inline key. The argument sends this one request the other way
+-- from `inline.mode`, or takes the inline lines down.
+local INLINE_ARGS = { "clear", "headless", "session" }
+
+vim.api.nvim_create_user_command("FloatingClaudeInline", function(opts)
+  local inline = require("floating-claude.inline")
+  local what = vim.trim(opts.args)
+  if what == "clear" then
+    inline.clear()
+  elseif what == "" or what == "session" or what == "headless" then
+    inline.ask({ line1 = opts.line1, line2 = opts.line2, mode = what ~= "" and what or nil })
+  else
+    vim.notify(
+      ("FloatingClaudeInline: unknown argument '%s' (one of %s)"):format(
+        what,
+        table.concat(INLINE_ARGS, ", ")
+      ),
+      vim.log.levels.WARN
+    )
+  end
+end, {
+  nargs = "?",
+  range = true,
+  desc = "Ask Claude about the selected lines, or the cursor line",
+  complete = function(lead)
+    return vim.tbl_filter(function(candidate)
+      return vim.startswith(candidate, lead)
+    end, INLINE_ARGS)
+  end,
+})

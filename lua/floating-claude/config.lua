@@ -103,6 +103,49 @@ M.defaults = {
     watch_ms = 300,
   },
 
+  -- Inline mode: ask Claude about the code in front of you. Select lines (or
+  -- stand on one), press `keymaps.inline`, and type an instruction in an input
+  -- that opens right under the code. What happens next shows as dim virtual
+  -- lines under the code too, a few at most; the whole exchange is always in
+  -- the float.
+  inline = {
+    -- false turns inline mode off: no key, and the command does nothing.
+    enabled = true,
+    -- Where a request goes. "session": typed into the Claude the float is
+    -- running, so it joins that conversation with its context, tools and
+    -- permissions. "headless": a `claude -p` process of its own for that one
+    -- request. `:FloatingClaudeInline session|headless` runs one the other way.
+    mode = "session",
+    -- What a session request does while Claude is busy. "wait": hold it until
+    -- Claude's turn ends, and drop it rather than touch a draft you left in
+    -- Claude's input or answer a question Claude is asking. "send": send at
+    -- once and let Claude Code queue it.
+    when_busy = "wait",
+    -- Virtual lines shown under the code, at most.
+    lines = 3,
+    -- Rows the input grows to before it scrolls.
+    max_input_height = 6,
+    -- Layout of a diff Claude opens for an inline request: "unified" is
+    -- claudecode.nvim's own, or false to keep the layout you configured there.
+    diff_layout = "unified",
+    -- Show that diff in the window you asked from, and give your file back
+    -- once it is resolved. false opens it in a tab, as other diffs do.
+    diff_in_window = true,
+    -- What `mode = "headless"` runs.
+    headless = {
+      -- The command, as a list. Arguments are added after it.
+      cmd = { "claude" },
+      -- The model to ask for: a name, or false for the CLI's default.
+      model = false,
+      -- How an edit lands. "review": nothing in the file changes until you
+      -- accept what shows under the code. "stream": written in as it arrives,
+      -- in one undo block.
+      apply = "review",
+      -- Lines of the file sent either side of the range.
+      context_lines = 40,
+    },
+  },
+
   keymaps = {
     -- Terminal-mode mapping, set in the Claude buffer, to minimize without
     -- leaving insert mode. Set to false to skip it. The default chord avoids
@@ -119,6 +162,11 @@ M.defaults = {
     -- plugin heard from Claude in a buffer, so you can see exactly what it
     -- listens to. Same rules as `hide`.
     events = "<leader>ae",
+    -- Normal- and visual-mode mapping, set globally, that starts an inline
+    -- request: on the cursor line, or on the selected lines. Same rules as
+    -- `hide`, per mode: a mapping of your own on this key in either mode is
+    -- left alone. It is not mapped while `inline.enabled` is false.
+    inline = "<leader>ai",
   },
 
   -- Normal- and visual-mode mappings for claudecode.nvim's commands. true:
