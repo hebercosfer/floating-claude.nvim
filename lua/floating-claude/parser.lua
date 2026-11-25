@@ -5,9 +5,10 @@
 -- and what the latest message says.
 --
 -- Most of the time Claude is heard through its hooks instead (hooks/), and
--- this file keeps four jobs: the live status line the corner's title borrows
+-- this file keeps these jobs: the live status line the corner's title borrows
 -- (status()), the safety net that line gives the session against interrupts,
--- which fire no hook, the diff predicates, and -- when the hooks are
+-- which fire no hook, the diff predicates, the text in the input box
+-- (input_draft(), which no hook reports either), and -- when the hooks are
 -- unavailable -- everything, the way it always has.
 
 local config = require("floating-claude.config")
@@ -436,6 +437,55 @@ local function read_screen()
     end
   end
   return lines, boundary, panel
+end
+
+--- What the input box holds: "" for an empty box, the text of a draft
+--- otherwise, and nil when no box can be read -- no terminal, no box drawn yet,
+--- or something other than the input between the rules, a permission dialog
+--- say, which a caller must not paste over.
+---
+--- The box is the rows between the last two rules. Its first row is the `❯`
+--- glyph (and a no-break space) and then the text, each row after it indented
+--- by two; both are taken off, and the rows are joined with newlines. The echoes
+--- of earlier prompts in the transcript carry the same glyph, which is why
+--- nothing above the rules is read.
+---
+--- It is a read of the screen, and the screen does not tell a draft from the
+--- prompt Claude Code suggests in the same place, dim: see inline/send.lua.
+--- @return string|nil
+function M.input_draft()
+  if not state.buf_valid() then
+    return nil
+  end
+  local lines, top = read_screen()
+  if top > #lines then
+    return nil
+  end
+  -- The last rule is the bottom edge, even if a draft has a rule of its own.
+  local bottom
+  for i = #lines, top + 1, -1 do
+    if is_rule(lines[i]) then
+      bottom = i
+      break
+    end
+  end
+  if not bottom then
+    return nil
+  end
+
+  local rows = {}
+  for i = top + 1, bottom - 1 do
+    table.insert(rows, clean(lines[i]))
+  end
+  local first = rows[1] and rows[1]:gsub("^%s+", "")
+  if not first or first:sub(1, #PROMPT_GLYPH) ~= PROMPT_GLYPH then
+    return nil
+  end
+  rows[1] = first:sub(#PROMPT_GLYPH + 1):gsub("^%s+", "")
+  for i = 2, #rows do
+    rows[i] = rows[i]:gsub("^  ", "")
+  end
+  return (table.concat(rows, "\n"):gsub("%s+$", ""))
 end
 
 -- What the notification shows: the newest block of the transcript worth

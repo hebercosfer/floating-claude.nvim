@@ -575,6 +575,99 @@ describe("parser", function()
     end)
   end)
 
+  describe("input_draft", function()
+    local NBSP = "\194\160"
+
+    -- A capture of Claude Code's screen, as tests/fixtures/input_box/ holds it.
+    local function fixture(name)
+      return vim.fn.readfile(vim.fn.fnamemodify("tests/fixtures/input_box/" .. name, ":p"))
+    end
+
+    it("is empty for an empty box", function()
+      buffer(fixture("empty.txt"))
+      assert.equals("", parser.input_draft())
+    end)
+
+    it("reads the text of a draft, and not the prompts echoed above the box", function()
+      -- The transcript above carries `❯` rows of its own: the echoes of what
+      -- was asked, which read like a draft when scanned for the glyph.
+      buffer(fixture("draft.txt"))
+      assert.equals("explain the watcher", parser.input_draft())
+    end)
+
+    it(
+      "joins a draft's rows with newlines, and takes off the indent of the rows after the first",
+      function()
+        buffer(fixture("draft_multiline.txt"))
+        assert.equals("explain the watcher\nand the parser", parser.input_draft())
+      end
+    )
+
+    it("reads a suggested next prompt as the draft it looks like", function()
+      -- Whether it was typed is not on the screen; send.lua keeps track.
+      buffer(fixture("suggestion.txt"))
+      assert.equals("In three words, what is Neovim?", parser.input_draft())
+    end)
+
+    it("takes a plain space after the glyph as well as the no-break one", function()
+      buffer({ "● Done.", RULE, "❯ fix it", RULE, "  status" })
+      assert.equals("fix it", parser.input_draft())
+      buffer({ "● Done.", RULE, "❯" .. NBSP .. "fix it", RULE, "  status" })
+      assert.equals("fix it", parser.input_draft())
+    end)
+
+    it("keeps the indentation a draft has past the box's own", function()
+      buffer({ RULE, "❯" .. NBSP .. "def f():", "      return 1", RULE })
+      assert.equals("def f():\n    return 1", parser.input_draft())
+    end)
+
+    it("keeps a blank row between two lines of a draft, and drops blank ones at its end", function()
+      buffer({ RULE, "❯" .. NBSP .. "one", "", "  two", "  ", RULE })
+      assert.equals("one\n\ntwo", parser.input_draft())
+    end)
+
+    it("reads the last two rules, whatever is above them", function()
+      buffer({
+        RULE,
+        "❯" .. NBSP .. "an older box",
+        RULE,
+        "● Done.",
+        "",
+        RULE,
+        "❯" .. NBSP,
+        RULE,
+      })
+      assert.equals("", parser.input_draft())
+    end)
+
+    it("is nil with no terminal", function()
+      state.buf = -1
+      assert.is_nil(parser.input_draft())
+    end)
+
+    it("is nil when no box is drawn yet", function()
+      buffer({ "● Starting up…" })
+      assert.is_nil(parser.input_draft())
+    end)
+
+    it("is nil with a single rule", function()
+      buffer({ "● Done.", RULE, "❯" .. NBSP })
+      assert.is_nil(parser.input_draft())
+    end)
+
+    it("is nil when what sits between the rules is a dialog and not the input", function()
+      buffer({
+        "● Wants to edit lua/net.lua",
+        RULE,
+        " Do you want to proceed?",
+        " ❯ 1. Yes",
+        "   2. No",
+        RULE,
+      })
+      assert.is_nil(parser.input_draft())
+    end)
+  end)
+
   describe("diff_pending", function()
     local diff_buf
 
